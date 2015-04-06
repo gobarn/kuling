@@ -31,16 +31,6 @@ func (c *StreamClient) Fetch(topic, partition string, sequenceID, maxMessages in
 
 	defer conn.Close()
 
-	// _, err = conn.Write([]byte("all"))
-	// fmt.Println("Write client")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	//payload := make([]byte, 1024)
-	//fmt.Println("Reading client")
-	//_, err = conn.Read(payload)
-
 	var buf bytes.Buffer
 	readBytes, err := io.Copy(&buf, conn)
 
