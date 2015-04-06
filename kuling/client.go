@@ -1,12 +1,9 @@
 package kuling
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 )
@@ -55,21 +52,20 @@ func (c *StreamClient) Fetch(topic string, startSequenceID, maxNumMessages int64
 	if status != 200 {
 		return errors.New("Server responded with status: " + strconv.Itoa(int(status)))
 	}
+	//
+	// // Copy the rest of the sent bytes into the buffer and parse.
+	// var buf bytes.Buffer
+	// readBytes, err := io.Copy(&buf, conn)
+	//
+	// if err == io.EOF {
+	// 	// All OK, we have reached the end of the byte stream
+	// 	fmt.Println("ALl read")
+	// } else if err != nil {
+	// 	// Something went wrong when reading from the server
+	// 	panic(err)
+	// }
 
-	// Copy the rest of the sent bytes into the buffer and parse.
-	var buf bytes.Buffer
-	readBytes, err := io.Copy(&buf, conn)
-
-	if err == io.EOF {
-		// All OK, we have reached the end of the byte stream
-		fmt.Println("ALl read")
-	} else if err != nil {
-		// Something went wrong when reading from the server
-		panic(err)
-	}
-
-	r := bufio.NewReader(&buf)
-	copiedM, err := ReadMessages(r)
+	copiedM, readBytes, err := ReadMessages(conn)
 
 	fmt.Println("Reading all messages")
 

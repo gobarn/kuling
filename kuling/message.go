@@ -1,7 +1,6 @@
 package kuling
 
 import (
-	"bufio"
 	"encoding/binary"
 	"hash/crc32"
 	"io"
@@ -61,16 +60,19 @@ func WriteMessage(w io.Writer, m *Message) (int64, error) {
 	return int64(8 + 8 + 8 + m.KeyLength + m.PayloadLength), nil
 }
 
-// ReadMessages reads all messages in bufio
-func ReadMessages(r *bufio.Reader) ([]*Message, error) {
+// ReadMessages parses a stream of messages into a parsed entity
+func ReadMessages(r io.Reader) ([]*Message, int, error) {
 	var messages []*Message
 
+	var readBytes = 0
 	for {
-		m, _, err := ReadMessage(r)
+		m, messageBytes, err := ReadMessage(r)
 
 		if err == io.EOF {
-			return messages, nil
+			return messages, readBytes, nil
 		}
+
+		readBytes = readBytes + messageBytes
 
 		if err != nil {
 			panic(err)
@@ -81,7 +83,7 @@ func ReadMessages(r *bufio.Reader) ([]*Message, error) {
 }
 
 // ReadMessage reads a message file into a slice of messages
-func ReadMessage(r *bufio.Reader) (*Message, int, error) {
+func ReadMessage(r io.Reader) (*Message, int, error) {
 	// Message header contains the length of the message
 
 	var crc int32

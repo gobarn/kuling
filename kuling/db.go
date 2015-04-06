@@ -1,7 +1,6 @@
 package kuling
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -272,8 +271,7 @@ func (d *LogStore) Read(topic string, startSequenceID, maxMessages int64) ([]*Me
 
 		defer f.Close()
 
-		r := bufio.NewReader(f)
-		messages, err := ReadMessages(r)
+		messages, _, err := ReadMessages(f)
 
 		if err != nil {
 			return nil, err
