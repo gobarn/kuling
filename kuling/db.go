@@ -49,8 +49,6 @@ type LogStore struct {
 	// it
 	locks   map[string]sync.Locker
 	indexes map[string]*bolt.DB
-	// For each log, the offset of the next message
-	logsOfsset map[string]int64
 }
 
 // Open LogStore from given root path. The root path must be a directory
@@ -76,10 +74,9 @@ func Open(root string) *LogStore {
 	logs := make(map[string]*os.File)
 	locks := make(map[string]sync.Locker)
 	indexes := make(map[string]*bolt.DB)
-	logsOffset := make(map[string]int64)
 
 	// Create log store
-	logStore := &LogStore{true, root, metaDB, logs, locks, indexes, logsOffset}
+	logStore := &LogStore{true, root, metaDB, logs, locks, indexes}
 
 	// Get all known topics from the meta db and create log entries for each
 	// in the log store
@@ -133,7 +130,6 @@ func (d *LogStore) createTopicIfNotExists(topic string) (*os.File, error) {
 
 	d.logs[topic] = dataFile
 	d.locks[topic] = &sync.RWMutex{}
-	d.logsOfsset[topic] = 0
 
 	// Open or create new Index based on BoltDB
 	index, err := bolt.Open(path.Join(d.rootPath, topic+".idx"), 0600, nil)
