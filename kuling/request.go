@@ -12,7 +12,6 @@ import (
 type ClientRequest struct {
 	// The action that the request want to carry out
 	action  int32
-	length  int64
 	payload []byte
 }
 

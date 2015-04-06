@@ -2,7 +2,6 @@ package kuling
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"hash/crc32"
 	"io"
@@ -32,32 +31,34 @@ func NewMessage(key, payload []byte) *Message {
 }
 
 // WriteMessage writes the message into the writer
-func WriteMessage(w *bufio.Writer, m *Message) (int64, error) {
-	buffer := bytes.NewBuffer(make([]byte, 0))
+func WriteMessage(w io.Writer, m *Message) (int64, error) {
 	// Write checksum
-	binary.Write(buffer, binary.BigEndian, &m.Crc)
+	err := binary.Write(w, binary.BigEndian, &m.Crc)
+	if err != nil {
+		panic("Unable to write checksum")
+	}
 	// Write key length
-	binary.Write(buffer, binary.BigEndian, &m.KeyLength)
+	err = binary.Write(w, binary.BigEndian, &m.KeyLength)
+	if err != nil {
+		panic("Unable to write key length")
+	}
 	// Write key
-	buffer.Write(m.Key)
+	_, err = w.Write(m.Key)
+	if err != nil {
+		panic("Unable to write key")
+	}
 	// Write payload length
-	binary.Write(buffer, binary.BigEndian, &m.PayloadLength)
+	err = binary.Write(w, binary.BigEndian, &m.PayloadLength)
+	if err != nil {
+		panic("Unable to write payload length")
+	}
 	// Write payload
-	buffer.Write(m.Payload)
-
-	bytesWritten, err := w.Write(buffer.Bytes())
-
+	_, err = w.Write(m.Payload)
 	if err != nil {
-		return 0, err
+		panic("Unable to write payload")
 	}
 
-	err = w.Flush()
-
-	if err != nil {
-		return 0, err
-	}
-
-	return int64(bytesWritten), nil
+	return int64(8 + 8 + 8 + m.KeyLength + m.PayloadLength), nil
 }
 
 // ReadMessages reads all messages in bufio

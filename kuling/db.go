@@ -184,6 +184,7 @@ func (d *LogStore) Write(topic, partition string, key, payload []byte) error {
 	log, err := d.createTopicIfNotExists(topic)
 
 	if err != nil {
+		// Could not create topic
 		return err
 	}
 
@@ -196,9 +197,8 @@ func (d *LogStore) Write(topic, partition string, key, payload []byte) error {
 			// Create message
 			m := NewMessage(key, payload)
 
-			// Create buffered writer from the log file
-			w := bufio.NewWriter(log)
-			totalMessageLen, err := WriteMessage(w, m)
+			// Write directly to the log file handle
+			totalMessageLen, err := WriteMessage(log, m)
 
 			if err != nil {
 				// Could not write to file
