@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -122,7 +123,10 @@ func (d *LogStore) createTopicIfNotExists(topic string) (*os.File, error) {
 		return log, nil
 	}
 
-	dataFile, err := os.OpenFile(path.Join(d.rootPath, topic+".data"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
+	// Open the file with write only permissions and append mode that moves the
+	// seek handle to the end of the file for each write. Ask the OS to
+	// create the file if not present.
+	dataFile, err := os.OpenFile(path.Join(d.rootPath, topic+".data"), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 
 	if err != nil {
 		return nil, err
@@ -335,18 +339,23 @@ func (d *LogStore) Copy(topic string, startSequenceID, maxMessages int64, w io.W
 			return 0, err
 		}
 
+		// Make sure to close the read file handle
 		defer f.Close()
 
 		// Seek to the start position of the startSequenceID in the file
 		offset, err := d.offsetOf(topic, startSequenceID)
+		fmt.Printf("Offset %d\n", offset)
 		if err != nil {
 			// this means that the start ID is higher than the last written ID
 			return 0, errors.New("Start ID does not exist")
 		}
 
-		f.Seek(offset, 0)
+		// Seek the file handle to the start offset relative to the begining of
+		// the file.
+		f.Seek(offset, os.SEEK_SET)
 
 		endOffset, err := d.offsetOf(topic, startSequenceID+maxMessages)
+		fmt.Printf("End Offset %d\n", endOffset)
 
 		if err != nil {
 			// This means that the offset of the max message is greater than
@@ -355,9 +364,12 @@ func (d *LogStore) Copy(topic string, startSequenceID, maxMessages int64, w io.W
 			return io.Copy(w, f)
 		}
 
+		// The number of bytes to copy is the end offset minus start offset
+		bytesToRead := endOffset - offset
+
 		// Copy the message file from the topic file to the writer from the client
 		// read X number of messages forward
-		return io.CopyN(w, f, endOffset)
+		return io.CopyN(w, f, bytesToRead)
 	}
 
 	return 0, ErrTopicNotExist

@@ -45,7 +45,7 @@ func WriteMessage(w *bufio.Writer, m *Message) (int64, error) {
 	// Write payload
 	buffer.Write(m.Payload)
 
-	n, err := w.Write(buffer.Bytes())
+	bytesWritten, err := w.Write(buffer.Bytes())
 
 	if err != nil {
 		return 0, err
@@ -57,7 +57,7 @@ func WriteMessage(w *bufio.Writer, m *Message) (int64, error) {
 		return 0, err
 	}
 
-	return int64(n), nil
+	return int64(bytesWritten), nil
 }
 
 // ReadMessages reads all messages in bufio
@@ -82,16 +82,6 @@ func ReadMessages(r *bufio.Reader) ([]*Message, error) {
 // ReadMessage reads a message file into a slice of messages
 func ReadMessage(r *bufio.Reader) (*Message, int, error) {
 	// Message header contains the length of the message
-
-	//magic, err := r.ReadByte() // Reads 1
-	// if err != nil {
-	// 	return nil, 0, err
-	// }
-	//
-	// attributes, err := r.ReadByte() // Reads 1
-	// if err != nil {
-	// 	return nil, 0, err
-	// }
 
 	var crc int32
 	err := binary.Read(r, binary.BigEndian, &crc) // Reads 8

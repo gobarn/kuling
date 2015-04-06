@@ -21,22 +21,30 @@ func NewStreamClient(host string, port int) *StreamClient {
 }
 
 // Fetch a batch of messages from the topic and partition as well
-func (c *StreamClient) Fetch(topic, partition string, sequenceID, maxMessages int64) error {
-	fmt.Println("Connecting")
-	conn, err := net.Dial("tcp4", c.host+":"+strconv.Itoa(c.port))
+func (c *StreamClient) Fetch(topic, partition string, startSequenceID, maxNumMessages int64) error {
+	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
+	fmt.Println("Connecting to " + address)
+	conn, err := net.Dial("tcp4", address)
 
 	if err != nil {
+		// Could not connecto to address
 		panic(err)
 	}
 
+	// Make sure to close the connection after all is done
 	defer conn.Close()
+
+	// Send fetch request to server
+	writeFetcRequest(topic, startSequenceID, maxNumMessages, conn)
 
 	var buf bytes.Buffer
 	readBytes, err := io.Copy(&buf, conn)
 
 	if err == io.EOF {
+		// All OK, we have reached the end of the byte stream
 		fmt.Println("ALl read")
 	} else if err != nil {
+		// Something went wrong when reading from the server
 		panic(err)
 	}
 

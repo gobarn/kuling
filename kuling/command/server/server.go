@@ -27,7 +27,10 @@ func runServer() {
 	db := kuling.Open(dataDir)
 	defer db.Close()
 	// TEMP, REMOVE
-	writePayment(db)
+	for i := 0; i < 100; i++ {
+		writePayment(db)
+	}
+
 	// Create a new stream server and run it
 	s := kuling.NewStreamServer(host, port, db)
 	// Run in a blocking call
@@ -35,7 +38,7 @@ func runServer() {
 }
 
 func writePayment(db *kuling.LogStore) {
-	err := db.Write("payments", "part_01", []byte("apa@izettle.com"), []byte("My own payment"))
+	err := db.Write("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
 
 	if err != nil {
 		panic(err)
