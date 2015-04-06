@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -93,7 +92,6 @@ func Open(root string) *LogStore {
 		// For each topic create a log entry
 		b.ForEach(func(k, v []byte) error {
 			// Create the log from the root and join the name of the topic
-			fmt.Println("Creating topic " + string(k))
 			_, err := logStore.createTopicIfNotExists(string(k))
 
 			return err

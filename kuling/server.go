@@ -47,7 +47,7 @@ func (s *StreamServer) ListenAndServe() {
 func (s *StreamServer) handleRequest(conn net.Conn) {
 	fmt.Println("Copying to client")
 	// Send a response back to person contacting us.
-	numCopied, err := s.logStore.Copy("payments", 0, 2, conn)
+	numCopied, err := s.logStore.Copy("payments", 0, 100, conn)
 	// Close the connection when you're done with it.
 
 	if err != nil {
