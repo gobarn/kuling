@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +30,11 @@ var ClientCmd = &cobra.Command{
 func streamFrom() {
 	c := kuling.NewStreamClient(host, port)
 
-	c.Fetch(topic, "part_01", int64(startID), int64(maxNumMessages))
+	err := c.Fetch(topic, int64(startID), int64(maxNumMessages))
+
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 // init sets up flags for the client commands

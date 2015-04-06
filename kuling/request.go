@@ -30,14 +30,14 @@ func writeFetcRequest(topic string, startSequenceID, maxNumMessages int64, w io.
 	// Write payload
 	buffer.Write(topicBytes)
 
-	n, err := w.Write(buffer.Bytes())
+	bytesWritte, err := w.Write(buffer.Bytes())
 
 	if err != nil {
 		// If we could not write the action then return back
 		return 0, err
 	}
 
-	return int64(n), nil
+	return int64(bytesWritte), nil
 }
 
 func readRequest(ls *LogStore, r io.Reader, w io.Writer) {
@@ -106,7 +106,7 @@ func readRequest(ls *LogStore, r io.Reader, w io.Writer) {
 
 		// Now we have read it all and are ready to read from the log store
 		// Write succes response
-		// TODO writeStatusResponse(200, w)
+		writeStatusResponse(200, w)
 		// Write the messages from the topic to the connection
 		numCopied, err := ls.Copy(string(topic), startSequenceID, maxNumMessages, w)
 
@@ -125,10 +125,6 @@ func readRequest(ls *LogStore, r io.Reader, w io.Writer) {
 }
 
 func writeStatusResponse(status int, w io.Writer) {
-	buffer := bytes.NewBuffer(make([]byte, 0))
 	// Write checksum
-	binary.Write(buffer, binary.BigEndian, status)
-
-	// Write the status back to the client
-	w.Write(buffer.Bytes())
+	binary.Write(w, binary.BigEndian, int32(status))
 }

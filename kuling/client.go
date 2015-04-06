@@ -3,6 +3,8 @@ package kuling
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,7 +23,7 @@ func NewStreamClient(host string, port int) *StreamClient {
 }
 
 // Fetch a batch of messages from the topic and partition as well
-func (c *StreamClient) Fetch(topic, partition string, startSequenceID, maxNumMessages int64) error {
+func (c *StreamClient) Fetch(topic string, startSequenceID, maxNumMessages int64) error {
 	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	fmt.Println("Connecting to " + address)
 	conn, err := net.Dial("tcp4", address)
@@ -37,6 +39,24 @@ func (c *StreamClient) Fetch(topic, partition string, startSequenceID, maxNumMes
 	// Send fetch request to server
 	writeFetcRequest(topic, startSequenceID, maxNumMessages, conn)
 
+	// The first part of the response contains the status integer that tells us
+	// if the request was OK.
+	var status int32
+	err = binary.Read(conn, binary.BigEndian, &status) // Reads 8
+	if err != nil {
+		// This means that we could not read the status integer in the response
+		// either something is wrong with server or the internet failed to send us
+		// the bytes, anyway we cannot continue
+		return errors.New("Bad response from server, could not read status")
+	}
+
+	// If the status is not 200 then we do not have a OK response from the
+	// server
+	if status != 200 {
+		return errors.New("Server responded with status: " + strconv.Itoa(int(status)))
+	}
+
+	// Copy the rest of the sent bytes into the buffer and parse.
 	var buf bytes.Buffer
 	readBytes, err := io.Copy(&buf, conn)
 
@@ -48,7 +68,6 @@ func (c *StreamClient) Fetch(topic, partition string, startSequenceID, maxNumMes
 		panic(err)
 	}
 
-	//buffer := bytes.NewBuffer(make([]byte, 0))
 	r := bufio.NewReader(&buf)
 	copiedM, err := ReadMessages(r)
 

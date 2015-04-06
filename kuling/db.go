@@ -350,10 +350,6 @@ func (d *LogStore) Copy(topic string, startSequenceID, maxMessages int64, w io.W
 			return 0, errors.New("Start ID does not exist")
 		}
 
-		// Seek the file handle to the start offset relative to the begining of
-		// the file.
-		f.Seek(offset, os.SEEK_SET)
-
 		endOffset, err := d.offsetOf(topic, startSequenceID+maxMessages)
 		fmt.Printf("End Offset %d\n", endOffset)
 
