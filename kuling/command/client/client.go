@@ -30,7 +30,7 @@ var ClientCmd = &cobra.Command{
 func streamFrom() {
 	c := kuling.NewStreamClient(host, port)
 
-	err := c.Fetch(topic, int64(startID), int64(maxNumMessages))
+	err := c.Fetch(kuling.NewFetchRequest(topic, int64(startID), int64(maxNumMessages)))
 
 	if err != nil {
 		fmt.Println(err)

@@ -20,7 +20,7 @@ func NewStreamClient(host string, port int) *StreamClient {
 }
 
 // Fetch a batch of messages from the topic and partition as well
-func (c *StreamClient) Fetch(topic string, startSequenceID, maxNumMessages int64) error {
+func (c *StreamClient) Fetch(fr *FetchRequest) error {
 	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	fmt.Println("Connecting to " + address)
 	conn, err := net.Dial("tcp4", address)
@@ -34,7 +34,7 @@ func (c *StreamClient) Fetch(topic string, startSequenceID, maxNumMessages int64
 	defer conn.Close()
 
 	// Send fetch request to server
-	writeFetcRequest(topic, startSequenceID, maxNumMessages, conn)
+	fr.WriteFetcRequest(conn)
 
 	// The first part of the response contains the status integer that tells us
 	// if the request was OK.
@@ -43,7 +43,7 @@ func (c *StreamClient) Fetch(topic string, startSequenceID, maxNumMessages int64
 	if err != nil {
 		// This means that we could not read the status integer in the response
 		// either something is wrong with server or the internet failed to send us
-		// the bytes, anyway we cannot continue
+		// the bytes, anyway we cannot continue.
 		return errors.New("Bad response from server, could not read status")
 	}
 
