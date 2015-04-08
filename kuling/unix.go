@@ -32,3 +32,8 @@ func flock(f *os.File, timeout time.Duration) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// funlock releases an advisory lock on a file descriptor.
+func funlock(f *os.File) error {
+	return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+}

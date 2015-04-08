@@ -90,6 +90,8 @@ func (idx *LogIndex) Close() {
 	// Readers do not acqurie read lock as they can read without checking in
 	// with the writer. However we should wait for all the readers to finish
 	idx.readWaitGroup.Wait()
+
+	funlock(idx.writeFile)
 }
 
 // Next writes the offset value to the next sequence ID key
