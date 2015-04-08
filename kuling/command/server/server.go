@@ -24,7 +24,7 @@ var ServerCmd = &cobra.Command{
 
 func runServer() {
 	// Open the Kuling log store
-	db := kuling.Open(dataDir)
+	db := kuling.OpenLogStore(dataDir)
 	defer db.Close()
 	// TEMP, REMOVE
 	for i := 0; i < 100; i++ {
