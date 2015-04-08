@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 )
 
 // The byte length of a key
@@ -45,27 +46,37 @@ type LogIndex struct {
 // OpenIndex creates a index from the file if it does not exist
 // and opens the index if it already exists
 func OpenIndex(path string) (*LogIndex, error) {
+	log := &LogIndex{true, 0, path, nil, 0, &sync.RWMutex{}, &sync.WaitGroup{}}
 	// IMPORTANT:
 	// Open the file with create, append and read write.
 	// Permissions set to R/W for the user executing
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
-
-	if err != nil {
+	var err error
+	if log.writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600); err != nil {
+		log.Close()
 		// This should not happen, may be that the file has wrong permissions.
 		return nil, err
 	}
 
-	// Get file stat to check if it contains any previous entry
-	fd, err := f.Stat()
+	// Lock file so that other processes cannot use the same file as that may
+	// cause corruption. If we cannot lock the file after the timouet then
+	// we return an error
+	if err = flock(log.writeFile, 1000*time.Millisecond); err != nil {
+		log.Close()
+		return nil, err
+	}
 
+	// Get file stat to check if it contains any previous entry
+	fd, err := log.writeFile.Stat()
 	if err != nil {
 		return nil, err
 	}
 
-	// The current sequence ID can be calculated
-	currentSequenceID := fd.Size() / (keyLen + valueLen)
+	// The next sequence ID can be calculated from the size which gives
+	// the number of messages in the log and then adding 1 for it to represent
+	// the next id
+	log.nextSequenceID = fd.Size()/(keyLen+valueLen) + 1
 
-	return &LogIndex{true, currentSequenceID, path, f, fd.Size(), &sync.RWMutex{}, &sync.WaitGroup{}}, nil
+	return log, nil
 }
 
 // Close the index

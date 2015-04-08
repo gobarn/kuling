@@ -27,7 +27,7 @@ func runServer() {
 	db := kuling.OpenLogStore(dataDir)
 	defer db.Close()
 	// TEMP, REMOVE
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5000; i++ {
 		writePayment(db)
 	}
 

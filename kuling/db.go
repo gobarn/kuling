@@ -7,8 +7,6 @@ import (
 	"os"
 	"path"
 	"sync"
-
-	"github.com/boltdb/bolt"
 )
 
 // ErrClosed signals that the LogStore is closed
@@ -39,9 +37,6 @@ type LogStore struct {
 	rootPath string
 	// Current offset
 	currentOffset int64
-	// Meta data database that contain all metadata that is global for this
-	// store
-	metaDB *bolt.DB
 	// Map of topic to file handle, we start with one file for each topic
 	// and expand from there.
 	logs map[string]*os.File
@@ -64,44 +59,13 @@ func OpenLogStore(root string) *LogStore {
 		panic("Root is not a directory")
 	}
 
-	// Open bolt database
-	metaDB, err := bolt.Open(path.Join(root, "meta.db"), 0644, nil)
-	if err != nil {
-		panic(err)
-	}
-
 	// arrays of logs
 	logs := make(map[string]*os.File)
 	locks := make(map[string]sync.Locker)
 	indexes := make(map[string]*LogIndex)
 
 	// Create log store
-	logStore := &LogStore{true, root, info.Size(), metaDB, logs, locks, indexes}
-	//
-	// rootDir, err := os.Open(root)
-	// dirs, err := rootDir.Readdirnames(-1)
-
-	// Get all known topics from the meta db and create log entries for each
-	// in the log store
-	err = metaDB.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists(topics)
-		if err != nil {
-			panic(err)
-		}
-
-		// For each topic create a log entry
-		b.ForEach(func(k, v []byte) error {
-			// Create the log from the root and join the name of the topic
-			fmt.Println("Existing topic" + string(k))
-			_, err := logStore.createTopicIfNotExists(string(k))
-
-			return err
-		})
-
-		return nil
-	})
-
-	return logStore
+	return &LogStore{true, root, info.Size(), logs, locks, indexes}
 }
 
 // Close closes the log store, you need to handle this as the last
@@ -109,8 +73,6 @@ func OpenLogStore(root string) *LogStore {
 func (d *LogStore) Close() {
 	// notify others that the DB is now closed
 	d.running = false
-	// Close meta data DB
-	d.metaDB.Close()
 	// Close all file handles by first acquireing their respective write locks
 	for _, f := range d.logs {
 		f.Close()
@@ -126,18 +88,6 @@ func (d *LogStore) createTopicIfNotExists(topic string) (*os.File, error) {
 		// Topic already exists
 		return log, nil
 	}
-
-	// store the topic in the meta db
-	err := d.metaDB.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists(topics)
-		if err != nil {
-			panic(err)
-		}
-
-		b.Put([]byte(topic), []byte(topic))
-
-		return nil
-	})
 
 	// Open the file with write only permissions and append mode that moves the
 	// seek handle to the end of the file for each write. Ask the OS to
