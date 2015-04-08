@@ -121,8 +121,12 @@ func (fr *FetchRequest) WriteFetcRequest(w io.Writer) (int64, RequestError) {
 
 // WriteFetchRequestResponse writes all the requested messages to the io writer
 func (fr *FetchRequest) WriteFetchRequestResponse(ls *LogStore, r io.Reader, w io.Writer) (int64, ResponseError) {
-	// Ask log store to copy the requested messages onto the io.Writer
+	// We have to write the status before we can send the payload. This is a
+	// bit unfortunate as we we will always send OK status and then might fail
+	// at sending the payload
 	writeStatusResponse(200, w)
+	// Ask log store to copy the requested messages onto the io.Writer
+
 	numCopied, err := ls.Copy(string(fr.Topic), fr.StartSequenceID, fr.MaxNumMessages, w)
 
 	if err != nil {
