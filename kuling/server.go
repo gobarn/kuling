@@ -12,11 +12,11 @@ type StreamServer struct {
 	host string
 	port int
 
-	logStore *LogStore
+	logStore LogStore
 }
 
 // NewStreamServer creates a new stream server
-func NewStreamServer(host string, port int, logStore *LogStore) *StreamServer {
+func NewStreamServer(host string, port int, logStore LogStore) *StreamServer {
 	return &StreamServer{host, port, logStore}
 }
 

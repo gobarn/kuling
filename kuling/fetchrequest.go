@@ -120,7 +120,7 @@ func (fr *FetchRequest) WriteFetcRequest(w io.Writer) (int64, RequestError) {
 }
 
 // WriteFetchRequestResponse writes all the requested messages to the io writer
-func (fr *FetchRequest) WriteFetchRequestResponse(ls *LogStore, r io.Reader, w io.Writer) (int64, ResponseError) {
+func (fr *FetchRequest) WriteFetchRequestResponse(ls LogStore, r io.Reader, w io.Writer) (int64, ResponseError) {
 	// We have to write the status before we can send the payload. This is a
 	// bit unfortunate as we we will always send OK status and then might fail
 	// at sending the payload

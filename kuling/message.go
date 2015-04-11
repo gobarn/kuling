@@ -57,7 +57,7 @@ func WriteMessage(w io.Writer, m *Message) (int64, error) {
 		panic("Unable to write payload")
 	}
 
-	return int64(8 + 8 + 8 + m.KeyLength + m.PayloadLength), nil
+	return int64(4 + 4 + 4 + m.KeyLength + m.PayloadLength), nil
 }
 
 // ReadMessages parses a stream of messages into a parsed entity

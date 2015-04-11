@@ -1,9 +1,9 @@
 package kuling
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -18,6 +18,9 @@ const valueLen = 8
 
 // Index is closed
 var ErrIndexClosed = errors.New("Index has been closed")
+
+// The index write could not be made
+var ErrIndexWriteFailed = errors.New("Index write failed")
 
 // ErrSequenceIDNotFound tells the user that the sequecne ID is to high or low
 var ErrSequenceIDNotFound = errors.New("Sequence ID not found")
@@ -52,7 +55,6 @@ func OpenIndex(path string) (*LogIndex, error) {
 	// Permissions set to R/W for the user executing
 	var err error
 	if log.writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600); err != nil {
-		log.Close()
 		// This should not happen, may be that the file has wrong permissions.
 		return nil, err
 	}
@@ -75,6 +77,8 @@ func OpenIndex(path string) (*LogIndex, error) {
 	// the number of messages in the log and then adding 1 for it to represent
 	// the next id
 	log.nextSequenceID = fd.Size()/(keyLen+valueLen) + 1
+	// Set the size of the file
+	log.size = fd.Size()
 
 	return log, nil
 }
@@ -103,21 +107,33 @@ func (idx *LogIndex) Next(offsetValue int64) (int64, error) {
 		return 0, ErrIndexClosed
 	}
 
+	// Buffered io for writing the entire index row in one flush to the
+	// writer.
+	buf := bufio.NewWriter(idx.writeFile)
+
 	// Create a entry by combining the next sequence ID with the offset value
 	// The file is opened in append mode thus we need not seek to the end
 	// TODO this should be made in one write to get better TX handling
 	currentSequenceID := idx.nextSequenceID
-	err := binary.Write(idx.writeFile, binary.BigEndian, &currentSequenceID)
+	err := binary.Write(buf, binary.BigEndian, &currentSequenceID)
 	if err != nil {
 		// Could not write sequence ID
 		panic(err)
 	}
 
-	err = binary.Write(idx.writeFile, binary.BigEndian, &offsetValue)
+	err = binary.Write(buf, binary.BigEndian, &offsetValue)
 	if err != nil {
 		// Could not write offsetValue but we wrote the sequence ID
 		// TODO we have made the index corrupt!
 		panic(err)
+	}
+
+	// Flush the row to disk
+	err = buf.Flush()
+
+	if err != nil {
+		// The log entry could not be written.
+		return 0, ErrIndexWriteFailed
 	}
 
 	// Increase the sequence ID for this entry
@@ -141,6 +157,10 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	if sequenceID < 0 {
 		return 0, ErrSequenceIDNotFound
 	}
+	if sequenceID > (idx.nextSequenceID - 1) {
+		return 0, ErrSequenceIDNotFound
+	}
+
 	// Seek the write file to the write location of the sequenceID
 	// Each "row" in the index stores two int64 numbers so calculating
 	// the offset for a key can be done by multiplying int64 byte length
@@ -148,9 +168,6 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	// get the next offset for the next sequence, if we then add one
 	// int64 we get the value of the offset for the given sequence ID.
 	seekOffset := (keyLen+valueLen)*sequenceID + keyLen
-	if seekOffset > idx.size {
-		return 0, ErrSequenceIDNotFound
-	}
 
 	// Add reader to wait group
 	idx.readWaitGroup.Add(1)
@@ -163,10 +180,9 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 		return 0, ErrIndexFileCouldNotBeOpened
 	}
 
-	// Seek to the seek offset
+	// Seek to the seek offset of the sequence ID. As clients are most likely
+	// to be up to speed it's better to seek from the end of the file
 	_, err = readFile.Seek(seekOffset, os.SEEK_SET)
-
-	fmt.Println("Seek offset", seekOffset)
 
 	if err == io.EOF {
 		// Searched to the end of the file and could not find the sequence
@@ -177,9 +193,10 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 
 	var value int64
 	err = binary.Read(readFile, binary.BigEndian, &value) // Reads 8
-	if err != nil {
-		// Read error that is not due to file not being opened or seek error.
-		// The file may be corrupt
+	if err == io.EOF {
+		// Searched to the end of the file and could not find the sequence
+		return 0, ErrSequenceIDNotFound
+	} else if err != nil {
 		panic(err)
 	}
 

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
 )
@@ -24,9 +26,18 @@ var ServerCmd = &cobra.Command{
 
 func runServer() {
 	// Open the Kuling log store
-	db := kuling.OpenLogStore(dataDir)
+	db := kuling.OpenLogStore(dataDir, 0700, 0600)
 	defer db.Close()
 	// TEMP, REMOVE
+	go func() {
+		for {
+			select {
+			case <-db.Closed():
+				fmt.Println("Closed")
+			}
+		}
+	}()
+
 	for i := 0; i < 5000; i++ {
 		writePayment(db)
 	}
@@ -37,7 +48,7 @@ func runServer() {
 	s.ListenAndServe()
 }
 
-func writePayment(db *kuling.LogStore) {
+func writePayment(db kuling.LogStore) {
 	err := db.Write("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
 
 	if err != nil {
