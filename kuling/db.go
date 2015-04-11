@@ -56,8 +56,7 @@ type TopicLogStore struct {
 	// Flag indicating if the log is open or closed
 	running bool
 	// Permissions for directories and files
-	permDir  os.FileMode
-	permFile os.FileMode
+	permDir, permFile os.FileMode
 	// The root path of the database, this is where segments and such
 	// are positioned
 	rootPath string

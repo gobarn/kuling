@@ -1,6 +1,7 @@
 package kuling
 
 import (
+	"bufio"
 	"encoding/binary"
 	"hash/crc32"
 	"io"
@@ -31,33 +32,47 @@ func NewMessage(key, payload []byte) *Message {
 
 // WriteMessage writes the message into the writer
 func WriteMessage(w io.Writer, m *Message) (int64, error) {
+	// Write all fields into a buffer that we can flush. This gives us a
+	// transaction againts the FS for the write
+	buf := bufio.NewWriter(w)
 	// Write checksum
-	err := binary.Write(w, binary.BigEndian, &m.Crc)
+	err := binary.Write(buf, binary.BigEndian, &m.Crc)
 	if err != nil {
 		panic("Unable to write checksum")
 	}
 	// Write key length
-	err = binary.Write(w, binary.BigEndian, &m.KeyLength)
+	err = binary.Write(buf, binary.BigEndian, &m.KeyLength)
 	if err != nil {
 		panic("Unable to write key length")
 	}
 	// Write key
-	_, err = w.Write(m.Key)
+	_, err = buf.Write(m.Key)
 	if err != nil {
 		panic("Unable to write key")
 	}
 	// Write payload length
-	err = binary.Write(w, binary.BigEndian, &m.PayloadLength)
+	err = binary.Write(buf, binary.BigEndian, &m.PayloadLength)
 	if err != nil {
 		panic("Unable to write payload length")
 	}
 	// Write payload
-	_, err = w.Write(m.Payload)
+	_, err = buf.Write(m.Payload)
 	if err != nil {
 		panic("Unable to write payload")
 	}
 
-	return int64(4 + 4 + 4 + m.KeyLength + m.PayloadLength), nil
+	// The total length of the written message
+	totalLen := buf.Buffered()
+
+	// Flush the buffer to the writer
+	err = buf.Flush()
+
+	if err != nil {
+		// Could not commit the message to the writer
+		return 0, err
+	}
+
+	return int64(totalLen), nil
 }
 
 // ReadMessages parses a stream of messages into a parsed entity
