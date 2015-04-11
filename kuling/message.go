@@ -76,18 +76,15 @@ func WriteMessage(w io.Writer, m *Message) (int64, error) {
 }
 
 // ReadMessages parses a stream of messages into a parsed entity
-func ReadMessages(r io.Reader) ([]*Message, int, error) {
+func ReadMessages(r io.Reader) ([]*Message, error) {
 	var messages []*Message
 
-	var readBytes = 0
 	for {
-		m, messageBytes, err := ReadMessage(r)
+		m, err := ReadMessage(r)
 
 		if err == io.EOF {
-			return messages, readBytes, nil
+			return messages, nil
 		}
-
-		readBytes = readBytes + messageBytes
 
 		if err != nil {
 			panic(err)
@@ -98,20 +95,19 @@ func ReadMessages(r io.Reader) ([]*Message, int, error) {
 }
 
 // ReadMessage reads a message file into a slice of messages
-func ReadMessage(r io.Reader) (*Message, int, error) {
+func ReadMessage(r io.Reader) (*Message, error) {
 	// Message header contains the length of the message
-
 	var crc int32
 	err := binary.Read(r, binary.BigEndian, &crc) // Reads 8
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	// Key
 	var keyLength int32
 	err = binary.Read(r, binary.BigEndian, &keyLength) // Reads 8
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	key := make([]byte, keyLength) // Reads len payload
@@ -121,15 +117,15 @@ func ReadMessage(r io.Reader) (*Message, int, error) {
 	var payloadLength int32
 	err = binary.Read(r, binary.BigEndian, &payloadLength) // Reads 8
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	payload := make([]byte, payloadLength) // Reads len payload
 	_, err = r.Read(payload)
 
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return &Message{crc, keyLength, key, payloadLength, payload}, 8 + 8 + 8 + int(keyLength) + int(payloadLength), nil
+	return &Message{crc, keyLength, key, payloadLength, payload}, nil
 }

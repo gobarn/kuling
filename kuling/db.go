@@ -291,7 +291,7 @@ func (ls *TopicLogStore) Read(topic string, startSequenceID, maxMessages int64) 
 
 		defer f.Close()
 
-		messages, _, err := ReadMessages(f)
+		messages, err := ReadMessages(f)
 
 		if err != nil {
 			return nil, err
