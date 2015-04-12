@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 
+	"github.com/fredrikbackstrom/kuling/kuling/command/broker"
 	"github.com/fredrikbackstrom/kuling/kuling/command/client"
 	"github.com/fredrikbackstrom/kuling/kuling/command/server"
 	"github.com/spf13/cobra"
@@ -15,7 +16,7 @@ var version = "1.0.0"
 // This command does nothing except serve as a root command for all other
 // commands
 var AppCmd = &cobra.Command{
-	Long: "A Fast and Simple Event Store.\n\nKuling, a Swedish word meaning string Wind. \nKuling aims at being fast while not sacrificing simplicity of deployment.",
+	Long: "A Fast and Simple Event Store.\n\nKuling, a Swedish word meaning strong Wind. \nKuling aims at being fast while not sacrificing simplicity of deployment.",
 }
 
 // VersionCmd will print the current version of the application
@@ -31,5 +32,6 @@ var VersionCmd = &cobra.Command{
 // Bootstrap adds all sub commands to Tolinr
 func init() {
 	// Append all child commands to the application command
-	AppCmd.AddCommand(VersionCmd, server.ServerCmd, client.ClientCmd)
+	AppCmd.AddCommand(VersionCmd, server.ServerCmd, client.ClientCmd,
+		broker.BokerRootCmd)
 }

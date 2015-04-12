@@ -2,6 +2,9 @@ package server
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
 
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
@@ -9,8 +12,11 @@ import (
 
 // Flag variables
 var (
-	host    string
-	port    int
+	// Listen address for the log server
+	listenAddress string
+	// Admin listen address for RPC commands
+	commandAddress string
+	// data directory for the log store
 	dataDir string
 )
 
@@ -20,60 +26,78 @@ var ServerCmd = &cobra.Command{
 	Short: "Execute operation on Kuling Server",
 	Long:  "Execute operation on Kuling Server",
 	Run: func(cmd *cobra.Command, args []string) {
-		runServer()
+		// Open the log store
+		logStore := kuling.OpenLogStore(dataDir, 0700, 0600)
+
+		// TEMP writes to get some data
+		for i := 0; i < 50000; i++ {
+			err := logStore.Write("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
+
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		// Run the server in a new go routine
+		go runServer(logStore)
+		go runRPCCommandServer(logStore)
+
+		// All Traits have been successfully started, now block on the caller
+		osSignals := make(chan os.Signal, 1)
+		signal.Notify(osSignals, os.Interrupt)
+		for {
+			select {
+			case sig := <-osSignals:
+				if sig == os.Interrupt {
+					// Received Interrupt Signal. Stop the scheduler, workers and then shut down.
+					log.Println("Received exit signal, stopping server...")
+					// Stop log store
+					logStore.Close()
+					// Wait for the log store to close down
+					for {
+						select {
+						case <-logStore.Closed():
+							fmt.Println("Closed")
+							os.Exit(0)
+						}
+					}
+				}
+			}
+		}
 	},
 }
 
-func runServer() {
-	// Open the Kuling log store
-	db := kuling.OpenLogStore(dataDir, 0700, 0600)
-	defer db.Close()
-	// TEMP, REMOVE
-	go func() {
-		for {
-			select {
-			case <-db.Closed():
-				fmt.Println("Closed")
-			}
-		}
-	}()
+func runServer(logStore kuling.LogStore) {
+	// Create a new log server and run it
+	logServer := kuling.NewLogServer(listenAddress, logStore)
+	// Create a new RPC server and run it
 
-	for i := 0; i < 50000; i++ {
-		writePayment(db)
-	}
-
-	// Create a new stream server and run it
-	s := kuling.NewStreamServer(host, port, db)
 	// Run in a blocking call
-	s.ListenAndServe()
+	logServer.ListenAndServe()
 }
 
-func writePayment(db kuling.LogStore) {
-	err := db.Write("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
-
-	if err != nil {
-		panic(err)
-	}
+func runRPCCommandServer(logStore kuling.LogStore) {
+	rpcServer := kuling.NewRPCCommandServer(logStore)
+	rpcServer.ListenAndServe(commandAddress)
 }
 
 // init sets up flags for the server commands
 func init() {
 	// host is available for all commands under server
 	ServerCmd.PersistentFlags().StringVarP(
-		&host,
-		"host",
+		&listenAddress,
+		"address",
 		"a",
-		"localhost",
-		"host to serve from",
+		"localhost:9999",
+		"Listen address for LogStore Server",
 	)
 
-	// port is available for all commands under server
-	ServerCmd.PersistentFlags().IntVarP(
-		&port,
-		"port",
-		"p",
-		9999,
-		"Port to serve from",
+	ServerCmd.PersistentFlags().StringVarP(
+		&commandAddress,
+		"command-address",
+		"c",
+		"localhost:7777",
+		"Listen address for Command RPC Server",
 	)
 
 	ServerCmd.PersistentFlags().StringVarP(

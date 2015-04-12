@@ -8,19 +8,19 @@ import (
 	"strconv"
 )
 
-// StreamClient a
-type StreamClient struct {
+// LogStoreClient client that can access and command a remote log store
+type LogStoreClient struct {
 	host string
 	port int
 }
 
-// NewStreamClient Create new stream client
-func NewStreamClient(host string, port int) *StreamClient {
-	return &StreamClient{host, port}
+// NewLogStoreClient Create new stream client
+func NewLogStoreClient(host string, port int) *LogStoreClient {
+	return &LogStoreClient{host, port}
 }
 
 // Fetch a batch of messages from the topic and partition as well
-func (c *StreamClient) Fetch(fr *FetchRequest) error {
+func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	fmt.Println("Connecting to " + address)
 	conn, err := net.Dial("tcp4", address)

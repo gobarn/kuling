@@ -2,7 +2,6 @@ package kuling
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -23,6 +22,9 @@ var ErrTopicNotExist = errors.New("Topic does not exist")
 
 // LogStore interface for log stores
 type LogStore interface {
+	// CreateTopic creates a new topic. If the topic exists it returns
+	// a topic already exists error
+	CreateTopic(topic string) error
 	// Write inserts the paylooad into the topic and partition
 	Write(topic, partition string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as
@@ -167,6 +169,13 @@ func (ls *TopicLogStore) loadFromRootPath(root string) error {
 
 		return err
 	})
+
+	return err
+}
+
+// CreateTopic creates a topic if it does not already exist.
+func (ls *TopicLogStore) CreateTopic(topic string) error {
+	_, err := ls.createTopicIfNotExists(topic)
 
 	return err
 }
@@ -343,20 +352,17 @@ func (ls *TopicLogStore) Copy(topic string, startSequenceID, maxMessages int64, 
 
 		// Seek to the start position of the startSequenceID in the file
 		offset, err := ls.offsetOf(topic, startSequenceID)
-		fmt.Printf("%d Offset %d\n", startSequenceID, offset)
 		if err != nil {
 			// this means that the start ID is higher than the last written ID
 			return 0, errors.New("Start ID does not exist")
 		}
 
 		endOffset, err := ls.offsetOf(topic, startSequenceID+maxMessages)
-		fmt.Printf("%d End Offset %d\n", startSequenceID+maxMessages, endOffset)
 
 		if err != nil {
 			// This means that the offset of the max message is greater than
 			// the file size, so just copy the entire file from the seek position
 			// and then the rest of the file
-			fmt.Println("End index greater than file")
 			return io.Copy(w, f)
 		}
 

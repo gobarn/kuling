@@ -4,27 +4,25 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 )
 
-// StreamServer struct
-type StreamServer struct {
-	host string
-	port int
-
+// LogServer struct
+type LogServer struct {
+	// Listen address
+	laddr string
+	// Log Store to carry out commands on.
 	logStore LogStore
 }
 
-// NewStreamServer creates a new stream server
-func NewStreamServer(host string, port int, logStore LogStore) *StreamServer {
-	return &StreamServer{host, port, logStore}
+// NewLogServer creates a new stream server
+func NewLogServer(laddr string, logStore LogStore) *LogServer {
+	return &LogServer{laddr, logStore}
 }
 
 // ListenAndServe the server
-func (s *StreamServer) ListenAndServe() {
+func (s *LogServer) ListenAndServe() {
 	// Start a tcp listener on the host and port that were defined
-	address := net.JoinHostPort(s.host, strconv.Itoa(s.port))
-	l, err := net.Listen("tcp", address)
+	l, err := net.Listen("tcp", s.laddr)
 
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
@@ -34,10 +32,10 @@ func (s *StreamServer) ListenAndServe() {
 	// Close the listener when the application closes.
 	defer l.Close()
 
-	fmt.Println("Listening on " + address)
+	fmt.Println("Listening on " + s.laddr)
 
 	for {
-		// Listen for an incoming connection.
+		// Listen for an incoming connection for ever.
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting: ", err.Error())
@@ -55,10 +53,7 @@ func (s *StreamServer) ListenAndServe() {
 
 // handleRequest by taking the incomming connection and reading the status
 // integer that tells us what the request from the client wants.
-func (s *StreamServer) handleRequest(conn net.Conn) {
-	// Incoming request
-	fmt.Println("Copying to client")
-
+func (s *LogServer) handleRequest(conn net.Conn) {
 	// read the client requested action from the request
 	action, err := readRequestAction(conn)
 
@@ -67,8 +62,6 @@ func (s *StreamServer) handleRequest(conn net.Conn) {
 		writeStatusResponse(400, conn)
 		return
 	}
-
-	fmt.Printf("Action %d\n", action)
 
 	if action == ReqFetch {
 		// Read the fetch request from the io.Reader

@@ -3,7 +3,6 @@ package kuling
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
@@ -58,8 +57,6 @@ func NewFetchRequestFromReader(r io.Reader) (*FetchRequest, RequestError) {
 		return nil, &RequestReadError{405, err.Error()}
 	}
 
-	fmt.Printf("Start %d\n", startSequenceID)
-
 	var maxNumMessages int64
 	err = binary.Read(r, binary.BigEndian, &maxNumMessages) // Reads 8
 
@@ -67,8 +64,6 @@ func NewFetchRequestFromReader(r io.Reader) (*FetchRequest, RequestError) {
 		// Write back that we could not read max num messages
 		return nil, &RequestReadError{406, err.Error()}
 	}
-
-	fmt.Printf("Max %d\n", maxNumMessages)
 
 	var topicLength int32
 	err = binary.Read(r, binary.BigEndian, &topicLength) // Reads 4
@@ -78,8 +73,6 @@ func NewFetchRequestFromReader(r io.Reader) (*FetchRequest, RequestError) {
 		return nil, &RequestReadError{407, err.Error()}
 	}
 
-	fmt.Printf("TL %d\n", topicLength)
-
 	topic := make([]byte, topicLength) // Reads len payload
 	_, err = r.Read(topic)
 
@@ -87,8 +80,6 @@ func NewFetchRequestFromReader(r io.Reader) (*FetchRequest, RequestError) {
 		// Write back that we could not read the topic
 		return nil, &RequestReadError{408, err.Error()}
 	}
-
-	fmt.Printf("Topic %s\n", topic)
 
 	// Success
 	return &FetchRequest{string(topic), startSequenceID, maxNumMessages}, nil
@@ -133,8 +124,6 @@ func (fr *FetchRequest) WriteFetchRequestResponse(ls LogStore, r io.Reader, w io
 		// Let client know that we could not read from the DB.
 		return numCopied, &ResponseWriteError{ReqFetch, 408, err.Error()}
 	}
-
-	fmt.Printf("Num copied %d\n", numCopied)
 
 	return numCopied, nil
 }

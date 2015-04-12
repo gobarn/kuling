@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_package = "com.fredrikbackstrom.kuling";
+
+package kuling;
+
+// Publisher service definition
+service CommandServer {
+  // CreateTopic sends a create topic request down to the log store
+  // and echoes the result back to the client
+  rpc CreateTopic (CreateTopicRequest) returns (CreateTopicResponse) {}
+}
+
+// CreateTopic request
+message CreateTopicRequest {
+  string topic = 1;
+}
+
+// The response message containing the greetings
+message CreateTopicResponse {
+  int32 status = 1;
+  string message = 2;
+}
