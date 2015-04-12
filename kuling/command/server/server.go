@@ -38,7 +38,7 @@ func runServer() {
 		}
 	}()
 
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 50000; i++ {
 		writePayment(db)
 	}
 
