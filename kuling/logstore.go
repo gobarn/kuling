@@ -20,13 +20,22 @@ var ErrRootNotExists = errors.New("Root path needs to be created")
 // ErrTopicNotExist signals that the requested topic does not exist
 var ErrTopicNotExist = errors.New("Topic does not exist")
 
+// ErrShardKeyNotProvided signals that there was no shard key provieded
+var ErrShardKeyNotProvided = errors.New("Shard key not provided")
+
+// ErrKeyNotProvided key was not provided
+var ErrKeyNotProvided = errors.New("Payload Key not provided")
+
+// ErrPayloadNotProvided was not provieded
+var ErrPayloadNotProvided = errors.New("Payload not provided")
+
 // LogStore interface for log stores
 type LogStore interface {
 	// CreateTopic creates a new topic. If the topic exists it returns
 	// a topic already exists error
 	CreateTopic(topic string) error
 	// Write inserts the paylooad into the topic and partition
-	Write(topic, partition string, key, payload []byte) error
+	Write(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as
 	// parsed messages. It reads from the topic.
 	Read(topic string, startSequenceID, maxMessages int64) ([]*Message, error)
@@ -244,9 +253,22 @@ func (ls *TopicLogStore) createTopicIfNotExists(topic string) (*os.File, error) 
 }
 
 // Write the keyed message payload into the DB onto the topics partition
-func (ls *TopicLogStore) Write(topic, partition string, key, payload []byte) error {
+func (ls *TopicLogStore) Write(topic, shard string, key, payload []byte) error {
+	// Guards
 	if !ls.running {
 		return ErrClosed
+	}
+	if len(topic) == 0 {
+		return ErrTopicNotExist
+	}
+	if len(shard) == 0 {
+		return ErrShardKeyNotProvided
+	}
+	if len(key) == 0 {
+		return ErrKeyNotProvided
+	}
+	if len(payload) == 0 {
+		return ErrPayloadNotProvided
 	}
 
 	// Get topic log file

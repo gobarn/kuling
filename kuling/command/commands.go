@@ -5,6 +5,7 @@ import (
 
 	"github.com/fredrikbackstrom/kuling/kuling/command/broker"
 	"github.com/fredrikbackstrom/kuling/kuling/command/client"
+	"github.com/fredrikbackstrom/kuling/kuling/command/rpc"
 	"github.com/fredrikbackstrom/kuling/kuling/command/server"
 	"github.com/spf13/cobra"
 )
@@ -33,5 +34,6 @@ var VersionCmd = &cobra.Command{
 func init() {
 	// Append all child commands to the application command
 	AppCmd.AddCommand(VersionCmd, server.ServerCmd, client.ClientCmd,
+		rpc.CreateTopicCommand, rpc.PublishSingleCommand,
 		broker.BokerRootCmd)
 }

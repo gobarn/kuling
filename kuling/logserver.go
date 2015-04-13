@@ -2,6 +2,7 @@ package kuling
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -79,6 +80,6 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 	} else {
 		// unknown action code
 		writeStatusResponse(409, conn)
-		panic("Unknown action")
+		log.Println("Unknown action")
 	}
 }

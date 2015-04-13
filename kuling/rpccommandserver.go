@@ -34,6 +34,21 @@ func (s *RPCCommandServer) CreateTopic(ctx context.Context, r *CreateTopicReques
 	return &CreateTopicResponse{int32(200), r.Topic}, nil
 }
 
+// Publish publishes a message
+func (s *RPCCommandServer) Publish(ctx context.Context, r *PublishRequest) (*PublishRequestResponse, error) {
+	// Create topic in log store
+	err := s.logStore.Write(r.Topic, r.Shard, r.Key, r.Payload)
+
+	if err != nil {
+		log.Printf("publish: %v", err.Error())
+		return nil, err
+	}
+
+	fmt.Println("Writing to kittens!" + string(r.Key) + ":" + string(r.Payload))
+	// Return that the topic is created
+	return &PublishRequestResponse{int32(200)}, nil
+}
+
 // ListenAndServe Starts the rpc server on the listen address
 func (s *RPCCommandServer) ListenAndServe(laddr string) {
 	// Create a listener at provided address
