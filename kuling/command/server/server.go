@@ -30,7 +30,7 @@ var ServerCmd = &cobra.Command{
 		logStore := kuling.OpenLogStore(dataDir, 0700, 0600)
 
 		// TEMP writes to get some data
-		for i := 0; i < 50000; i++ {
+		for i := 0; i < 1; i++ {
 			err := logStore.Write("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
 
 			if err != nil {

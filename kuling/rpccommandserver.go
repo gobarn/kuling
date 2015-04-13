@@ -1,7 +1,6 @@
 package kuling
 
 import (
-	"fmt"
 	"log"
 	"net"
 
@@ -22,6 +21,7 @@ func NewRPCCommandServer(ls LogStore) *RPCCommandServer {
 
 // CreateTopic implements helloworld.GreeterServer
 func (s *RPCCommandServer) CreateTopic(ctx context.Context, r *CreateTopicRequest) (*CreateTopicResponse, error) {
+	log.Println("command: Create Topic", r.Topic)
 	// Create topic in log store
 	err := s.logStore.CreateTopic(r.Topic)
 
@@ -29,22 +29,22 @@ func (s *RPCCommandServer) CreateTopic(ctx context.Context, r *CreateTopicReques
 		return nil, err
 	}
 
-	fmt.Println("Creating topic!" + r.Topic)
+	log.Println("command: Created Topic", r.Topic)
 	// Return that the topic is created
 	return &CreateTopicResponse{int32(200), r.Topic}, nil
 }
 
 // Publish publishes a message
 func (s *RPCCommandServer) Publish(ctx context.Context, r *PublishRequest) (*PublishRequestResponse, error) {
+	log.Println("command: Publish on topic:", r.Topic)
 	// Create topic in log store
 	err := s.logStore.Write(r.Topic, r.Shard, r.Key, r.Payload)
 
 	if err != nil {
-		log.Printf("publish: %v", err.Error())
+		log.Println("command:", err.Error())
 		return nil, err
 	}
 
-	fmt.Println("Writing to kittens!" + string(r.Key) + ":" + string(r.Payload))
 	// Return that the topic is created
 	return &PublishRequestResponse{int32(200)}, nil
 }
@@ -52,13 +52,14 @@ func (s *RPCCommandServer) Publish(ctx context.Context, r *PublishRequest) (*Pub
 // ListenAndServe Starts the rpc server on the listen address
 func (s *RPCCommandServer) ListenAndServe(laddr string) {
 	// Create a listener at provided address
-	fmt.Println("Running Command Server")
 	lis, err := net.Listen("tcp", laddr)
 
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Fatalf("command: failed to listen: %v", err)
 		return
 	}
+
+	log.Println("command: Listening on", laddr)
 
 	// Start a new GRPC server and register the broker service.
 	server := grpc.NewServer()
