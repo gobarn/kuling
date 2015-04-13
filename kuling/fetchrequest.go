@@ -25,8 +25,10 @@ import (
 //
 
 const (
-	// ReqFetch Action number for fetch request from the client
-	ReqFetch = 200
+	// ActionWrite write a entry to the log store
+	ActionWrite = 100
+	// ActionFetch Action number for fetch request from the client
+	ActionFetch = 200
 	// StatusErrSequenceID indicates that the start sequence number could not be read
 	StatusErrSequenceID = 205
 )
@@ -89,7 +91,7 @@ func NewFetchRequestFromReader(r io.Reader) (*FetchRequest, RequestError) {
 func (fr *FetchRequest) WriteFetcRequest(w io.Writer) (int64, RequestError) {
 	buffer := bytes.NewBuffer(make([]byte, 0))
 	// Write action
-	writeRequestAction(ReqFetch, w)
+	writeRequestAction(ActionFetch, w)
 	// Write startSequenceID
 	binary.Write(buffer, binary.BigEndian, fr.StartSequenceID)
 	// Write maxNumMessages
@@ -122,7 +124,7 @@ func (fr *FetchRequest) WriteFetchRequestResponse(ls LogStore, r io.Reader, w io
 
 	if err != nil {
 		// Let client know that we could not read from the DB.
-		return numCopied, &ResponseWriteError{ReqFetch, 408, err.Error()}
+		return numCopied, &ResponseWriteError{ActionFetch, 408, err.Error()}
 	}
 
 	return numCopied, nil

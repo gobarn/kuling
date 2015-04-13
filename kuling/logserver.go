@@ -63,7 +63,7 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		return
 	}
 
-	if action == ReqFetch {
+	if action == ActionFetch {
 		// Read the fetch request from the io.Reader
 		req, err := NewFetchRequestFromReader(conn)
 		// Check that the status of the read was OK, if not write back the status
