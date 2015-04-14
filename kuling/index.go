@@ -28,6 +28,12 @@ var ErrSequenceIDNotFound = errors.New("Sequence ID not found")
 // ErrIndexFileCouldNotBeOpened the index file could not be opened
 var ErrIndexFileCouldNotBeOpened = errors.New("Index file could not be opened")
 
+// ErrNegativeOffset offset cannot be negative
+var ErrNegativeOffset = errors.New("Negative offset")
+
+// ErrPathNotSet the path was not set correctly
+var ErrPathNotSet = errors.New("Path not set")
+
 // LogIndex struct that knows how a index for a log file is
 type LogIndex struct {
 	// boolean to check that we are running
@@ -49,6 +55,9 @@ type LogIndex struct {
 // OpenIndex creates a index from the file if it does not exist
 // and opens the index if it already exists
 func OpenIndex(path string) (*LogIndex, error) {
+	if len(path) == 0 {
+		return nil, ErrPathNotSet
+	}
 	log := &LogIndex{true, 0, path, nil, 0, &sync.RWMutex{}, &sync.WaitGroup{}}
 	// IMPORTANT:
 	// Open the file with create, append and read write.
@@ -100,6 +109,9 @@ func (idx *LogIndex) Close() {
 
 // Next writes the offset value to the next sequence ID key
 func (idx *LogIndex) Next(offsetValue int64) (int64, error) {
+	if offsetValue < 0 {
+		return 0, ErrNegativeOffset
+	}
 	// Write lock the index and defer the unlock
 	idx.lock.Lock()
 	defer idx.lock.Unlock()
