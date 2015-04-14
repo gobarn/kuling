@@ -25,11 +25,12 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 
 	fmt.Println("client: Connecting to " + address)
 
+	// Dial the fetch server
 	conn, err := net.Dial("tcp4", address)
 
 	if err != nil {
 		// Could not connecto to address
-		panic(err)
+		fmt.Println("client: Error connecting", err)
 	}
 
 	// Make sure to close the connection after all is done
@@ -41,7 +42,11 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 
 	if err != nil {
 		// Could not write fetch request
+		fmt.Println("client: Error writing request", err)
 	}
+
+	// Flush the action to the connection
+	fetchReqWriter.Flush()
 
 	// The first part of the response contains the status integer that tells us
 	// if the request was OK.

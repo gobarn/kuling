@@ -35,6 +35,7 @@ type FetchRequest struct {
 
 // FetchRequestWriter struct that knows how to write fetch requests
 type FetchRequestWriter struct {
+	*RequestHeaderWriter
 	*bufio.Writer
 }
 
@@ -46,14 +47,15 @@ func NewFetchRequest(topic string, startSequenceID, maxNumMessages int64) *Fetch
 // NewFetchRequestWriter creates and returns a fetch request writer that will
 // write the binary fetch message to the writer
 func NewFetchRequestWriter(w io.Writer) *FetchRequestWriter {
-	return &FetchRequestWriter{bufio.NewWriter(w)}
+	buf := bufio.NewWriter(w)
+	return &FetchRequestWriter{NewRequestHeaderWriter(buf), buf}
 }
 
 // WriteFetchRequest writes the binary representation of the fetch request
 // to the io writer
 func (frw *FetchRequestWriter) WriteFetchRequest(topic string, startSequenceID, maxNumMessages int64) RequestError {
 	// Write action
-	binary.Write(frw, binary.BigEndian, int32(ActionFetch))
+	frw.WriteHeader(ActionFetch)
 	// Write startSequenceID
 	binary.Write(frw, binary.BigEndian, startSequenceID)
 	// Write maxNumMessages

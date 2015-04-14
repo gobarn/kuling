@@ -32,7 +32,7 @@ func (s *LogServer) ListenAndServe() {
 	// Close the listener when the application closes.
 	defer l.Close()
 
-	log.Println("fetc: Listening on", s.laddr)
+	log.Println("fetch: Listening on", s.laddr)
 
 	for {
 		// Listen for an incoming connection for ever.
@@ -54,8 +54,9 @@ func (s *LogServer) ListenAndServe() {
 // handleRequest by taking the incomming connection and reading the status
 // integer that tells us what the request from the client wants.
 func (s *LogServer) handleRequest(conn net.Conn) {
-	// read the client requested action from the request
-	requestAction, err := readRequestAction(conn)
+	// Reade request header
+	requestHeaderReader := NewRequestHeaderReader(conn)
+	requestAction, err := requestHeaderReader.ReadRequestHeader()
 
 	if err != nil {
 		// We could not read the action from the request. Return faulty request.
