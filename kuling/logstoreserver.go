@@ -58,28 +58,30 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 	requestHeaderReader := NewRequestHeaderReader(conn)
 	requestAction, err := requestHeaderReader.ReadRequestHeader()
 
+	responseWriter := NewRequestResponseWriter(conn)
+
 	if err != nil {
 		// We could not read the action from the request. Return faulty request.
-		writeStatusResponse(400, conn)
+		responseWriter.WriteHeader(400)
+
 		return
 	}
 
 	if requestAction == ActionFetch {
 		// Read the fetch request from the io.Reader
 		requestReader := NewFetchRequestReader(conn)
-		responseWriter := NewFetchRequestResponseWriter(conn)
 
 		fetchRequest, err := requestReader.ReadFetchRequest()
 		// Check that the status of the read was OK, if not write back the status
 		// to the client
 		if err != nil {
 			// Grab the status from the error and return it back to the client
-			writeStatusResponse(err.Status(), conn)
+			responseWriter.WriteHeader(err.Status())
 			return
 		}
 
 		// Write success response
-		responseWriter.WriteSuccessResponse()
+		responseWriter.WriteHeader(200)
 		// Copy log store chunk over to the connection
 		bytesCopied, copyErr := s.logStore.Copy(fetchRequest.Topic, fetchRequest.StartSequenceID, fetchRequest.MaxNumMessages, responseWriter)
 
@@ -89,7 +91,7 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		}
 	} else {
 		// unknown action code
-		writeStatusResponse(409, conn)
+		responseWriter.WriteHeader(409)
 		log.Println("fetch: Unknown action", requestAction)
 	}
 }

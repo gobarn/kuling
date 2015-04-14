@@ -22,6 +22,9 @@ const (
 // RequestAction type
 type RequestAction int32
 
+// ResponseStatus type
+type ResponseStatus int32
+
 // ErrBadResponseFromServer Signals that the byte sent back from the client
 // could not be read as they were expected to be read.
 var ErrBadResponseFromServer = errors.New("Bad Response From Server")
@@ -29,12 +32,12 @@ var ErrBadResponseFromServer = errors.New("Bad Response From Server")
 // RequestError interface for read requests
 type RequestError interface {
 	Error() string
-	Status() int
+	Status() ResponseStatus
 }
 
 // RequestReadError error struct that
 type RequestReadError struct {
-	status  int
+	status  ResponseStatus
 	message string
 }
 
@@ -43,21 +46,21 @@ func (e *RequestReadError) Error() string {
 }
 
 // Status returns the status code of the read error
-func (e *RequestReadError) Status() int {
+func (e *RequestReadError) Status() ResponseStatus {
 	return e.status
 }
 
 // ResponseError interface for read requests
 type ResponseError interface {
-	Action() int
-	Status() int
+	Action() RequestAction
+	Status() ResponseStatus
 	Error() string
 }
 
 // ResponseWriteError error struct that
 type ResponseWriteError struct {
-	status  int
-	action  int
+	status  ResponseStatus
+	action  RequestAction
 	message string
 }
 
@@ -66,12 +69,12 @@ func (e *ResponseWriteError) Error() string {
 }
 
 // Action of the response
-func (e *ResponseWriteError) Action() int {
+func (e *ResponseWriteError) Action() RequestAction {
 	return e.action
 }
 
 // Status returns the status code of the read error
-func (e *ResponseWriteError) Status() int {
+func (e *ResponseWriteError) Status() ResponseStatus {
 	return e.status
 }
 
@@ -102,16 +105,26 @@ func NewRequestHeaderReader(r io.Reader) *RequestHeaderReader {
 }
 
 // ReadRequestHeader reads the header of a request
-func (rhr *RequestHeaderReader) ReadRequestHeader() (int, error) {
+func (rhr *RequestHeaderReader) ReadRequestHeader() (RequestAction, error) {
 	// Read the action int32 from the first part of the message.
-	var action int32
+	var action RequestAction
 	err := binary.Read(rhr, binary.BigEndian, &action)
-	return int(action), err
+	return action, err
 }
 
-// // This writes a status integer that signals the status of the servers
-// // response
-func writeStatusResponse(status int, w io.Writer) error {
-	// Write status int
-	return binary.Write(w, binary.BigEndian, int32(status))
+// RequestResponseWriter writes responses
+type RequestResponseWriter struct {
+	io.Writer
+}
+
+// NewRequestResponseWriter creates a request response writer that
+// wrapps the call to the io reader
+func NewRequestResponseWriter(w io.Writer) *RequestResponseWriter {
+	return &RequestResponseWriter{w}
+}
+
+// WriteHeader writes a success response header
+func (fr *RequestResponseWriter) WriteHeader(status ResponseStatus) error {
+	// Write int32 status number
+	return binary.Write(fr, binary.BigEndian, status)
 }

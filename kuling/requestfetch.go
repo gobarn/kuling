@@ -127,20 +127,3 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 	// Success
 	return &FetchRequest{string(topic), startSequenceID, maxNumMessages}, nil
 }
-
-// FetchRequestResponseWriter writes responses
-type FetchRequestResponseWriter struct {
-	io.Writer
-}
-
-// NewFetchRequestResponseWriter creates a request response writer that
-// wrapps the call to the io reader
-func NewFetchRequestResponseWriter(w io.Writer) *FetchRequestResponseWriter {
-	return &FetchRequestResponseWriter{w}
-}
-
-// WriteSuccessResponse writes a success response header
-func (fr *FetchRequestResponseWriter) WriteSuccessResponse() error {
-	// Write int32 status number
-	return binary.Write(fr, binary.BigEndian, int32(200))
-}
