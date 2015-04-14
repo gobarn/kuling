@@ -8,6 +8,12 @@ import (
 
 // Generic request constants that are usde by multiple requests and responses
 const (
+	// ActionWrite write a entry to the log store
+	ActionWrite = 100
+	// ActionFetch Action number for fetch request from the client
+	ActionFetch = 200
+	// StatusErrSequenceID indicates that the start sequence number could not be read
+	StatusErrSequenceID = 205
 	// StatusSuccess signals that the request was successfully handled by server
 	StatusSuccess = 200
 )

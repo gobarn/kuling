@@ -1,7 +1,6 @@
 package kuling
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -26,20 +25,20 @@ func (s *LogServer) ListenAndServe() {
 	l, err := net.Listen("tcp", s.laddr)
 
 	if err != nil {
-		fmt.Println("Error listening:", err.Error())
+		log.Println("fetch: Error listening:", err.Error())
 		panic(err)
 	}
 
 	// Close the listener when the application closes.
 	defer l.Close()
 
-	fmt.Println("Listening on " + s.laddr)
+	log.Println("fetc: Listening on", s.laddr)
 
 	for {
 		// Listen for an incoming connection for ever.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			log.Println("fetch: Error accepting:", err.Error())
 			os.Exit(1)
 		}
 
@@ -56,7 +55,7 @@ func (s *LogServer) ListenAndServe() {
 // integer that tells us what the request from the client wants.
 func (s *LogServer) handleRequest(conn net.Conn) {
 	// read the client requested action from the request
-	action, err := readRequestAction(conn)
+	requestAction, err := readRequestAction(conn)
 
 	if err != nil {
 		// We could not read the action from the request. Return faulty request.
@@ -64,9 +63,12 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		return
 	}
 
-	if action == ActionFetch {
+	if requestAction == ActionFetch {
 		// Read the fetch request from the io.Reader
-		req, err := NewFetchRequestFromReader(conn)
+		requestReader := NewFetchRequestReader(conn)
+		responseWriter := NewFetchRequestResponseWriter(conn)
+
+		fetchRequest, err := requestReader.ReadFetchRequest()
 		// Check that the status of the read was OK, if not write back the status
 		// to the client
 		if err != nil {
@@ -75,11 +77,18 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 			return
 		}
 
-		// Request read ok, now grab the data and write the response
-		req.WriteFetchRequestResponse(s.logStore, conn, conn)
+		// Write success response
+		responseWriter.WriteSuccessResponse()
+		// Copy log store chunk over to the connection
+		bytesCopied, copyErr := s.logStore.Copy(fetchRequest.Topic, fetchRequest.StartSequenceID, fetchRequest.MaxNumMessages, responseWriter)
+
+		if copyErr != nil {
+			// Could not copy, now we have already written the success header... what to do..
+			log.Println("fetch: Could not copy ", bytesCopied, " to connection")
+		}
 	} else {
 		// unknown action code
 		writeStatusResponse(409, conn)
-		log.Println("Unknown action")
+		log.Println("fetch: Unknown action", requestAction)
 	}
 }

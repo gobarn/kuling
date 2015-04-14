@@ -22,7 +22,9 @@ func NewLogStoreClient(host string, port int) *LogStoreClient {
 // Fetch a batch of messages from the topic and partition as well
 func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
-	fmt.Println("Connecting to " + address)
+
+	fmt.Println("client: Connecting to " + address)
+
 	conn, err := net.Dial("tcp4", address)
 
 	if err != nil {
@@ -34,7 +36,12 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 	defer conn.Close()
 
 	// Send fetch request to server
-	fr.WriteFetcRequest(conn)
+	fetchReqWriter := NewFetchRequestWriter(conn)
+	err = fetchReqWriter.WriteFetchRequest(fr.Topic, fr.StartSequenceID, fr.MaxNumMessages)
+
+	if err != nil {
+		// Could not write fetch request
+	}
 
 	// The first part of the response contains the status integer that tells us
 	// if the request was OK.
