@@ -3,7 +3,6 @@ package kuling
 import (
 	"log"
 	"net"
-	"os"
 )
 
 // LogServer struct
@@ -22,7 +21,7 @@ func NewLogServer(laddr string, logStore LogStore) *LogServer {
 // ListenAndServe the server
 func (s *LogServer) ListenAndServe() {
 	// Start a tcp listener on the host and port that were defined
-	l, err := net.Listen("tcp", s.laddr)
+	listen, err := net.Listen("tcp", s.laddr)
 
 	if err != nil {
 		log.Println("fetch: Error listening:", err.Error())
@@ -30,16 +29,16 @@ func (s *LogServer) ListenAndServe() {
 	}
 
 	// Close the listener when the application closes.
-	defer l.Close()
+	defer listen.Close()
 
 	log.Println("fetch: Listening on", s.laddr)
 
 	for {
 		// Listen for an incoming connection for ever.
-		conn, err := l.Accept()
+		conn, err := listen.Accept()
 		if err != nil {
 			log.Println("fetch: Error accepting:", err.Error())
-			os.Exit(1)
+			continue
 		}
 
 		// Handle connections in a new goroutine and close the connection after
@@ -56,22 +55,21 @@ func (s *LogServer) ListenAndServe() {
 func (s *LogServer) handleRequest(conn net.Conn) {
 	// Reade request header
 	requestHeaderReader := NewRequestHeaderReader(conn)
-	requestAction, err := requestHeaderReader.ReadRequestHeader()
-
 	responseWriter := NewRequestResponseWriter(conn)
+
+	requestAction, err := requestHeaderReader.ReadRequestHeader()
 
 	if err != nil {
 		// We could not read the action from the request. Return faulty request.
-		responseWriter.WriteHeader(400)
-
+		responseWriter.WriteHeader(ReqErr)
 		return
 	}
 
 	if requestAction == ActionFetch {
 		// Read the fetch request from the io.Reader
-		requestReader := NewFetchRequestReader(conn)
+		fetchRequestReader := NewFetchRequestReader(conn)
 
-		fetchRequest, err := requestReader.ReadFetchRequest()
+		fetchRequest, err := fetchRequestReader.ReadFetchRequest()
 		// Check that the status of the read was OK, if not write back the status
 		// to the client
 		if err != nil {
@@ -81,7 +79,7 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		}
 
 		// Write success response
-		responseWriter.WriteHeader(200)
+		responseWriter.WriteHeader(ReqSuccess)
 		// Copy log store chunk over to the connection
 		bytesCopied, copyErr := s.logStore.Copy(fetchRequest.Topic, fetchRequest.StartSequenceID, fetchRequest.MaxNumMessages, responseWriter)
 
@@ -91,7 +89,7 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		}
 	} else {
 		// unknown action code
-		responseWriter.WriteHeader(409)
+		responseWriter.WriteHeader(StatusUnknownAction)
 		log.Println("fetch: Unknown action", requestAction)
 	}
 }

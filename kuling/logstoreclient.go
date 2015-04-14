@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 )
 
 // LogStoreClient client that can access and command a remote log store
@@ -21,6 +22,7 @@ func NewLogStoreClient(host string, port int) *LogStoreClient {
 
 // Fetch a batch of messages from the topic and partition as well
 func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
+	start := time.Now()
 	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 
 	fmt.Println("client: Connecting to " + address)
@@ -72,6 +74,8 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 	for _, m := range copiedM {
 		fmt.Println(string(m.Key) + " " + string(m.Payload))
 	}
+
+	fmt.Println(time.Since(start))
 
 	return nil
 }

@@ -97,7 +97,7 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 
 	if err != nil {
 		// Write back that we could not read the start sequence ID
-		return nil, &RequestReadError{405, err.Error()}
+		return nil, &RequestReadError{ReqErrSequenceID, err.Error()}
 	}
 
 	var maxNumMessages int64
@@ -105,7 +105,7 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 
 	if err != nil {
 		// Write back that we could not read max num messages
-		return nil, &RequestReadError{406, err.Error()}
+		return nil, &RequestReadError{ReqErrMaxNumMessage, err.Error()}
 	}
 
 	var topicLength int32
@@ -113,7 +113,7 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 
 	if err != nil {
 		// Write back that we could not read topic length
-		return nil, &RequestReadError{407, err.Error()}
+		return nil, &RequestReadError{ReqErrTopicLength, err.Error()}
 	}
 
 	topic := make([]byte, topicLength) // Reads len payload
@@ -121,7 +121,7 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 
 	if err != nil {
 		// Write back that we could not read the topic
-		return nil, &RequestReadError{408, err.Error()}
+		return nil, &RequestReadError{ReqErrTopic, err.Error()}
 	}
 
 	// Success

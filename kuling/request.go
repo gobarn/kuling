@@ -13,10 +13,20 @@ const (
 	ActionWrite = 100
 	// ActionFetch Action number for fetch request from the client
 	ActionFetch = 200
-	// StatusSuccess signals that the request was successfully handled by server
-	StatusSuccess = 200
-	// StatusErrSequenceID indicates that the start sequence number could not be read
-	StatusErrSequenceID = 205
+	// ReqSuccess signals that the request was successfully handled by server
+	ReqSuccess = 200
+	// ReqErr request not built correctly, some byte order is wrong
+	ReqErr = 300
+	// ReqErrSequenceID indicates that the start sequence number could not be read
+	ReqErrSequenceID = 305
+	// ReqErrMaxNumMessage indicates that the start sequence number could not be read
+	ReqErrMaxNumMessage = 310
+	// ReqErrTopicLength indicates that the start sequence number could not be read
+	ReqErrTopicLength = 315
+	// ReqErrTopic indicates that the start sequence number could not be read
+	ReqErrTopic = 320
+	// StatusUnknownAction unknown action sent to server
+	StatusUnknownAction = 500
 )
 
 // RequestAction type
