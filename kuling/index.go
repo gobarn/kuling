@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -47,9 +48,13 @@ type LogIndex struct {
 	// Index size
 	size int64
 	// Lock for the index
-	lock *sync.RWMutex
+	lock sync.RWMutex
 	// readers wait group
-	readWaitGroup *sync.WaitGroup
+	readWaitGroup sync.WaitGroup
+	// MMAP lock
+	mmaplock sync.RWMutex
+	// The index is a mmaped object
+	*memoryMapped
 }
 
 // OpenIndex creates a index from the file if it does not exist
@@ -58,12 +63,13 @@ func OpenIndex(path string) (*LogIndex, error) {
 	if len(path) == 0 {
 		return nil, ErrPathNotSet
 	}
-	log := &LogIndex{true, 0, path, nil, 0, &sync.RWMutex{}, &sync.WaitGroup{}}
+
 	// IMPORTANT:
 	// Open the file with create, append and read write.
 	// Permissions set to R/W for the user executing
 	var err error
-	if log.writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600); err != nil {
+	var writeFile *os.File
+	if writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600); err != nil {
 		// This should not happen, may be that the file has wrong permissions.
 		return nil, err
 	}
@@ -71,13 +77,12 @@ func OpenIndex(path string) (*LogIndex, error) {
 	// Lock file so that other processes cannot use the same file as that may
 	// cause corruption. If we cannot lock the file after the timouet then
 	// we return an error
-	if err = flock(log.writeFile, 1000*time.Millisecond); err != nil {
-		log.Close()
+	if err = flock(writeFile, 1000*time.Millisecond); err != nil {
 		return nil, err
 	}
 
 	// Get file stat to check if it contains any previous entry
-	fd, err := log.writeFile.Stat()
+	fd, err := writeFile.Stat()
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +90,21 @@ func OpenIndex(path string) (*LogIndex, error) {
 	// The next sequence ID can be calculated from the size which gives
 	// the number of messages in the log and then adding 1 for it to represent
 	// the next id
-	log.nextSequenceID = fd.Size()/(keyLen+valueLen) + 1
-	// Set the size of the file
-	log.size = fd.Size()
+	nextSequenceID := fd.Size()/(keyLen+valueLen) + 1
+	// setup the mmaping
+	mmaped := newMemoryMapped(writeFile)
 
-	return log, nil
+	// Create log
+	log := &LogIndex{true, nextSequenceID, path, writeFile, 0, sync.RWMutex{}, sync.WaitGroup{}, sync.RWMutex{}, mmaped}
+
+	// MMAP existing data if any
+	err = log.mmap()
+
+	if err != nil {
+		panic(err)
+	}
+
+	return log, err
 }
 
 // Close the index
@@ -97,14 +112,20 @@ func (idx *LogIndex) Close() {
 	// Write lock the index and defer the unlock
 	idx.lock.Lock()
 	defer idx.lock.Unlock()
+	defer funlock(idx.writeFile)
+
 	idx.running = false
 	// Close the write file for writing
 	idx.writeFile.Close()
 	// Readers do not acqurie read lock as they can read without checking in
 	// with the writer. However we should wait for all the readers to finish
 	idx.readWaitGroup.Wait()
+	// Unmap memory
+	err := idx.munmap()
 
-	funlock(idx.writeFile)
+	if err != nil {
+		fmt.Errorf("Could not unmap memory: %s", err)
+	}
 }
 
 // Next writes the offset value to the next sequence ID key
@@ -213,4 +234,86 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	}
 
 	return value, nil
+}
+
+// GetOffsetMMAP finds the offset value stored under the sequenceID key. If
+// The sequence ID cannot be found then ErrSequenceIDNotFound is returned.
+// If any trouble during file operations ErrIndexFileCouldNotBeOpened is
+// returned
+// On success the offset value is returned and nil error
+func (idx *LogIndex) GetOffsetMMAP(sequenceID int64) (int64, error) {
+	if !idx.running {
+		return 0, ErrIndexClosed
+	}
+	if sequenceID < 0 {
+		return 0, ErrSequenceIDNotFound
+	}
+	if sequenceID > (idx.nextSequenceID - 1) {
+		return 0, ErrSequenceIDNotFound
+	}
+	// Acquire mmap read lock
+	idx.mmaplock.RLock()
+	defer idx.mmaplock.RUnlock()
+
+	// Seek the write file to the write location of the sequenceID
+	// Each "row" in the index stores two int64 numbers so calculating
+	// the offset for a key can be done by multiplying int64 byte length
+	// times two for the row length and then times the sequenceID to
+	// get the next offset for the next sequence, if we then add one
+	// int64 we get the value of the offset for the given sequence ID.
+	seekOffset := (keyLen+valueLen)*sequenceID + keyLen
+
+	// Add reader to wait group
+	idx.readWaitGroup.Add(1)
+	defer idx.readWaitGroup.Done()
+
+	// // Create read file handle
+	// readFile, err := os.Open(idx.path)
+	//
+	// if err != nil {
+	// 	return 0, ErrIndexFileCouldNotBeOpened
+	// }
+
+	// Seek to the seek offset of the sequence ID. As clients are most likely
+	// to be up to speed it's better to seek from the end of the file
+	// _, err = readFile.Seek(seekOffset, os.SEEK_SET)
+
+	// if err == io.EOF {
+	// 	// Searched to the end of the file and could not find the sequence
+	// 	return 0, ErrSequenceIDNotFound
+	// } else if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Printf("%d : %d\n", len(idx.dataref), seekOffset)
+	if int64(len(idx.dataref)) < seekOffset {
+		// Remap!?
+		err := idx.mmap()
+
+		if err != nil {
+			panic("Could not remmap")
+		}
+	}
+
+	// fmt.Println(idx.dataref[seekOffset : seekOffset+8])
+
+	slice := idx.dataref[seekOffset : seekOffset+8]
+	data := binary.BigEndian.Uint64(slice)
+
+	// n, _ := binary.Varint(idx.dataref[seekOffset : seekOffset+8])
+
+	// fmt.Println(data)
+
+	return int64(data), nil
+	//
+	// var value int64
+	// err = binary.Read(readFile, binary.BigEndian, &value) // Reads 8
+	// if err == io.EOF {
+	// 	// Searched to the end of the file and could not find the sequence
+	// 	return 0, ErrSequenceIDNotFound
+	// } else if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// return value, nil
 }

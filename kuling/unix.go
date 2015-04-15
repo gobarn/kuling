@@ -9,7 +9,11 @@ import (
 	"unsafe"
 )
 
+// The max mmap size, depends on OS
 const maxMapSize = 0xFFFFFFFFFFFF // 256TB
+
+// The largest step that can be taken when remapping the mmap.
+const maxMmapStep = 1 << 30 // 1GB
 
 // Taken from the magnificant project BoltDB:
 // https://github.com/boltdb/bolt
@@ -47,32 +51,63 @@ func funlock(f *os.File) error {
 // information that's needed to do operations on the mmaped byte slice and also
 // to unmap data.
 type memoryMapped struct {
-	dataref []byte
+	file    *os.File
+	dataref []byte // mmap'ed readonly, write throws SEGV
 	data    *[maxMapSize]byte
-	datasz  int
 	*sync.Mutex
 }
 
-// mmapFromFile returns a mmap struct with data that is the mmaped version of
-// the file
-func mmapFromFile(file *os.File, sz int) (*memoryMapped, error) {
-	// Truncate and fsync to ensure file size metadata is flushed.
-	// https://github.com/boltdb/bolt/issues/284
-	if err := file.Truncate(int64(sz)); err != nil {
-		return nil, fmt.Errorf("file resize error: %s", err)
+// Creata new memory mapped from file and of max Size
+func newMemoryMapped(f *os.File) *memoryMapped {
+	return &memoryMapped{f, nil, nil, &sync.Mutex{}}
+}
+
+func (mm *memoryMapped) mmap() error {
+	// Lock mmap lock
+	mm.Lock()
+	defer mm.Unlock()
+
+	info, err := mm.file.Stat()
+	if err != nil {
+		fmt.Println("mmap stat error: ", err)
+		return nil
 	}
-	if err := file.Sync(); err != nil {
-		return nil, fmt.Errorf("file sync error: %s", err)
+
+	// Ensure the size is at least the minimum size.
+	var size = int(info.Size())
+
+	if size <= 0 {
+		return nil
+	}
+
+	// Truncate and fsync to ensure file size metadata is flushed.
+	if err := mm.file.Truncate(int64(size)); err != nil {
+		return fmt.Errorf("file resize error: %s", err)
+	}
+	if err := mm.file.Sync(); err != nil {
+		return fmt.Errorf("file sync error: %s", err)
+	}
+
+	// munmap any existing data first.
+	err = mm.munmap()
+
+	if err != nil {
+		// Could not munmap
+		fmt.Errorf("failed to munmap: %s", err)
+		return err
 	}
 
 	// Map the data file to memory with read only perm
-	b, err := syscall.Mmap(int(file.Fd()), 0, sz, syscall.PROT_READ, syscall.MAP_SHARED)
+	b, err := syscall.Mmap(int(mm.file.Fd()), 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Save the original byte slice and convert to a byte array pointer.
-	return &memoryMapped{b, (*[maxMapSize]byte)(unsafe.Pointer(&b[0])), sz, &sync.Mutex{}}, nil
+	// Set mmaped reference data
+	mm.data = (*[maxMapSize]byte)(unsafe.Pointer(&b[0]))
+	mm.dataref = b
+
+	return nil
 }
 
 // munmap unmaps a MM's data file from memory.
@@ -86,6 +121,5 @@ func (mm *memoryMapped) munmap() error {
 	err := syscall.Munmap(mm.dataref)
 	mm.dataref = nil
 	mm.data = nil
-	mm.datasz = 0
 	return err
 }
