@@ -53,11 +53,11 @@ type LogStore interface {
 //  root/
 //      meta.db
 //      topic1/
-//            partition_1/
+//            shard_1/
 //					             partition.idx
-//          						 000000001.data
-//                       000000002.data
-//            partition_2/
+//          						 segment_01.data
+//                       segment_02.data
+//            shard_2/
 //					             index.db
 //          						 000000001.data
 //                       000000002.data
