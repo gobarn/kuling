@@ -65,7 +65,10 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 		return errors.New("Server responded with status: " + strconv.Itoa(int(status)))
 	}
 
-	copiedM, err := ReadMessages(conn)
+	// Create message reader and read the messages
+	messageReader := NewMessageReader(conn)
+
+	copiedM, err := messageReader.ReadMessages()
 
 	fmt.Println("Reading all messages")
 

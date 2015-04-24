@@ -15,6 +15,7 @@ var (
 
 // Message a
 type Message struct {
+	SequenceID    int64
 	Crc           int32
 	KeyLength     int32
 	Key           []byte
@@ -23,49 +24,71 @@ type Message struct {
 }
 
 // NewMessage creates a new message from a byte array payload
-func NewMessage(key, payload []byte) *Message {
+func NewMessage(sequenceID int64, key, payload []byte) *Message {
 	c := crc32.New(table)
 	c.Write(payload)
 
-	return &Message{int32(crc32.Checksum(payload, table)), int32(len(key)), key, int32(len(payload)), payload}
+	return &Message{
+		sequenceID,
+		int32(crc32.Checksum(payload, table)),
+		int32(len(key)),
+		key,
+		int32(len(payload)),
+		payload,
+	}
+}
+
+// MessageWriter writes messages to a io Writer
+type MessageWriter struct {
+	*bufio.Writer
+}
+
+// NewMessageWriter creates a new message writer
+func NewMessageWriter(w io.Writer) *MessageWriter {
+	return &MessageWriter{bufio.NewWriter(w)}
 }
 
 // WriteMessage writes the message into the writer
-func WriteMessage(w io.Writer, m *Message) (int64, error) {
+func (w *MessageWriter) WriteMessage(m *Message) (int64, error) {
 	// Write all fields into a buffer that we can flush. This gives us a
 	// transaction againts the FS for the write
-	buf := bufio.NewWriter(w)
+
+	// Write sequence ID
+	err := binary.Write(w, binary.BigEndian, &m.SequenceID)
+	if err != nil {
+		panic("Unable to write sequenceID")
+	}
 	// Write checksum
-	err := binary.Write(buf, binary.BigEndian, &m.Crc)
+	err = binary.Write(w, binary.BigEndian, &m.Crc)
 	if err != nil {
 		panic("Unable to write checksum")
 	}
 	// Write key length
-	err = binary.Write(buf, binary.BigEndian, &m.KeyLength)
+	err = binary.Write(w, binary.BigEndian, &m.KeyLength)
 	if err != nil {
 		panic("Unable to write key length")
 	}
 	// Write key
-	_, err = buf.Write(m.Key)
+	_, err = w.Write(m.Key)
 	if err != nil {
 		panic("Unable to write key")
 	}
 	// Write payload length
-	err = binary.Write(buf, binary.BigEndian, &m.PayloadLength)
+	err = binary.Write(w, binary.BigEndian, &m.PayloadLength)
 	if err != nil {
 		panic("Unable to write payload length")
 	}
 	// Write payload
-	_, err = buf.Write(m.Payload)
+	_, err = w.Write(m.Payload)
 	if err != nil {
 		panic("Unable to write payload")
 	}
 
 	// The total length of the written message
-	totalLen := buf.Buffered()
+	totalLen := w.Buffered()
 
 	// Flush the buffer to the writer
-	err = buf.Flush()
+	err = w.Flush()
 
 	if err != nil {
 		// Could not commit the message to the writer
@@ -75,12 +98,23 @@ func WriteMessage(w io.Writer, m *Message) (int64, error) {
 	return int64(totalLen), nil
 }
 
+// MessageReader struct for reading messages from a io.Reader
+type MessageReader struct {
+	io.Reader
+}
+
+// NewMessageReader creates a new message reader that can read from
+// a io Reader
+func NewMessageReader(r io.Reader) *MessageReader {
+	return &MessageReader{r}
+}
+
 // ReadMessages parses a stream of messages into a parsed entity
-func ReadMessages(r io.Reader) ([]*Message, error) {
+func (r *MessageReader) ReadMessages() ([]*Message, error) {
 	var messages []*Message
 
 	for {
-		m, err := ReadMessage(r)
+		m, err := r.ReadMessage()
 
 		if err == io.EOF {
 			return messages, nil
@@ -95,10 +129,17 @@ func ReadMessages(r io.Reader) ([]*Message, error) {
 }
 
 // ReadMessage reads a message file into a slice of messages
-func ReadMessage(r io.Reader) (*Message, error) {
-	// Message header contains the length of the message
+func (r *MessageReader) ReadMessage() (*Message, error) {
+
+	var sequenceID int64
+	err := binary.Read(r, binary.BigEndian, &sequenceID) // Reads 8
+	if err != nil {
+		return nil, err
+	}
+
+	// Crc
 	var crc int32
-	err := binary.Read(r, binary.BigEndian, &crc) // Reads 8
+	err = binary.Read(r, binary.BigEndian, &crc) // Reads 8
 	if err != nil {
 		return nil, err
 	}
@@ -127,5 +168,5 @@ func ReadMessage(r io.Reader) (*Message, error) {
 		return nil, err
 	}
 
-	return &Message{crc, keyLength, key, payloadLength, payload}, nil
+	return &Message{sequenceID, crc, keyLength, key, payloadLength, payload}, nil
 }

@@ -2,9 +2,6 @@ package logstore
 
 import "github.com/spf13/cobra"
 
-const defaultFetchListenAddress = 10100
-const defaultAdminListenAddress = 10101
-
 var (
 	topic string
 )

@@ -38,7 +38,7 @@ func bootstrapFetch() {
 		&fetchAddress,
 		"host",
 		"a",
-		kuling.DefaultCommandAddress,
+		kuling.DefaultFetchAddress,
 		"Host where server is running",
 	)
 
