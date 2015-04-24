@@ -9,18 +9,18 @@ import (
 
 var (
 	// Constant table to use
-	table           = crc32.MakeTable(crc32.IEEE)
-	headerLen int32 = 10
+	table = crc32.MakeTable(crc32.IEEE)
 )
 
 // Message a
 type Message struct {
-	SequenceID    int64
-	Crc           int32
-	KeyLength     int32
-	Key           []byte
-	PayloadLength int32
-	Payload       []byte
+	Magic         byte   // 1
+	SequenceID    int64  // 8
+	Crc           int32  // 4
+	KeyLength     int32  // 4
+	Key           []byte // N
+	PayloadLength int32  // 4
+	Payload       []byte // N
 }
 
 // NewMessage creates a new message from a byte array payload
@@ -29,6 +29,7 @@ func NewMessage(sequenceID int64, key, payload []byte) *Message {
 	c.Write(payload)
 
 	return &Message{
+		0,
 		sequenceID,
 		int32(crc32.Checksum(payload, table)),
 		int32(len(key)),
@@ -36,6 +37,11 @@ func NewMessage(sequenceID int64, key, payload []byte) *Message {
 		int32(len(payload)),
 		payload,
 	}
+}
+
+// CalculateMessageSize returns the size in bytes of the message
+func CalculateMessageSize(key, payload []byte) int64 {
+	return int64(1 + 8 + 4 + 4 + 4 + len(key) + len(payload))
 }
 
 // MessageWriter writes messages to a io Writer
@@ -53,8 +59,14 @@ func (w *MessageWriter) WriteMessage(m *Message) (int64, error) {
 	// Write all fields into a buffer that we can flush. This gives us a
 	// transaction againts the FS for the write
 
+	// Write magic byte
+	err := w.WriteByte(m.Magic)
+	if err != nil {
+		panic("Unable to write Magic")
+	}
+
 	// Write sequence ID
-	err := binary.Write(w, binary.BigEndian, &m.SequenceID)
+	err = binary.Write(w, binary.BigEndian, &m.SequenceID)
 	if err != nil {
 		panic("Unable to write sequenceID")
 	}
@@ -130,9 +142,16 @@ func (r *MessageReader) ReadMessages() ([]*Message, error) {
 
 // ReadMessage reads a message file into a slice of messages
 func (r *MessageReader) ReadMessage() (*Message, error) {
+	// Read Magic
+	var magic byte
+	err := binary.Read(r, binary.BigEndian, &magic) // Reads 8
+	if err != nil {
+		return nil, err
+	}
 
+	// Sequence id
 	var sequenceID int64
-	err := binary.Read(r, binary.BigEndian, &sequenceID) // Reads 8
+	err = binary.Read(r, binary.BigEndian, &sequenceID) // Reads 8
 	if err != nil {
 		return nil, err
 	}
@@ -168,5 +187,14 @@ func (r *MessageReader) ReadMessage() (*Message, error) {
 		return nil, err
 	}
 
-	return &Message{sequenceID, crc, keyLength, key, payloadLength, payload}, nil
+	return &Message{
+			magic,
+			sequenceID,
+			crc,
+			keyLength,
+			key,
+			payloadLength,
+			payload,
+		},
+		nil
 }

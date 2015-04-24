@@ -17,6 +17,9 @@ const keyLen = 8
 // The byte length of a value
 const valueLen = 8
 
+// The byte length of a value size
+const valueSizeLen = 8
+
 // Index is closed
 var ErrIndexClosed = errors.New("Index has been closed")
 
@@ -95,7 +98,17 @@ func OpenIndex(path string) (*LogIndex, error) {
 	mmaped := newMemoryMapped(writeFile)
 
 	// Create log
-	log := &LogIndex{true, nextSequenceID, path, writeFile, 0, sync.RWMutex{}, sync.WaitGroup{}, sync.RWMutex{}, mmaped}
+	log := &LogIndex{
+		true,
+		nextSequenceID,
+		path,
+		writeFile,
+		0,
+		sync.RWMutex{},
+		sync.WaitGroup{},
+		sync.RWMutex{},
+		mmaped,
+	}
 
 	// MMAP existing data if any
 	err = log.mmap()
@@ -129,7 +142,7 @@ func (idx *LogIndex) Close() {
 }
 
 // Next writes the offset value to the next sequence ID key
-func (idx *LogIndex) Next(offsetValue int64) (int64, error) {
+func (idx *LogIndex) Next(offsetValue, messageSize int64) (int64, error) {
 	if offsetValue < 0 {
 		return 0, ErrNegativeOffset
 	}
@@ -146,7 +159,6 @@ func (idx *LogIndex) Next(offsetValue int64) (int64, error) {
 
 	// Create a entry by combining the next sequence ID with the offset value
 	// The file is opened in append mode thus we need not seek to the end
-	// TODO this should be made in one write to get better TX handling
 	currentSequenceID := idx.nextSequenceID
 	err := binary.Write(buf, binary.BigEndian, &currentSequenceID)
 	if err != nil {
@@ -157,7 +169,13 @@ func (idx *LogIndex) Next(offsetValue int64) (int64, error) {
 	err = binary.Write(buf, binary.BigEndian, &offsetValue)
 	if err != nil {
 		// Could not write offsetValue but we wrote the sequence ID
-		// TODO we have made the index corrupt!
+		panic(err)
+	}
+
+	// Write message size
+	err = binary.Write(buf, binary.BigEndian, &messageSize)
+	if err != nil {
+		// Could not write message size
 		panic(err)
 	}
 
@@ -200,7 +218,7 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	// times two for the row length and then times the sequenceID to
 	// get the next offset for the next sequence, if we then add one
 	// int64 we get the value of the offset for the given sequence ID.
-	seekOffset := (keyLen+valueLen)*sequenceID + keyLen
+	seekOffset := (keyLen+valueLen+valueSizeLen)*sequenceID + keyLen
 
 	// Add reader to wait group
 	idx.readWaitGroup.Add(1)

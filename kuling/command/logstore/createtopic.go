@@ -61,7 +61,14 @@ var PublishSingleCommand = &cobra.Command{
 				return
 			}
 
-			_, err := c.Publish(context.Background(), &kuling.PublishRequest{topic, shard, []byte(key), []byte(payload)})
+			req := &kuling.PublishRequest{
+				topic,
+				shard,
+				[]byte(key),
+				[]byte(payload),
+			}
+
+			_, err := c.Publish(context.Background(), req)
 
 			if err != nil {
 				fmt.Errorf("server: Could not create topic: %v\n", err)

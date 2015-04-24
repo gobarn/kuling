@@ -281,17 +281,17 @@ func (ls *TopicLogStore) Write(topic, shard string, key, payload []byte) error {
 
 	// Get Index and store a new value in it
 	if index, ok := ls.indexes[topic]; ok {
-		// TODO all of this need to be in TX.
-
 		// Write to the index store and save the current offset of the just
 		// written message
-		sequenceID, err := index.Next(ls.offsets[topic])
+		sequenceID, err := index.Next(ls.offsets[topic], CalculateMessageSize(key, payload))
 		if err != nil {
+			// Could not get index, not good!
 			panic(err)
 		}
 
 		// Create message
 		m := NewMessage(sequenceID, key, payload)
+
 		// Write message
 		messageWriter := NewMessageWriter(log)
 

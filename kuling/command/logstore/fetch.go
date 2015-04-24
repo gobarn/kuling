@@ -23,7 +23,12 @@ var FetchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := kuling.NewLogStoreClient(fetchAddress)
 
-		err := client.Fetch(kuling.NewFetchRequest(topic, int64(startID), int64(maxNumMessages)))
+		req := kuling.NewFetchRequest(
+			topic,
+			int64(startID),
+			int64(maxNumMessages))
+
+		err := client.Fetch(req)
 
 		if err != nil {
 			fmt.Println(err)
