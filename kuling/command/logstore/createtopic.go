@@ -1,4 +1,4 @@
-package rpc
+package logstore
 
 import (
 	"fmt"
@@ -13,19 +13,10 @@ import (
 // Flag variables
 var (
 	rpcAddress string
-	topic      string
 	shard      string
 	key        string
 	payload    string
 )
-
-// RPCCmd root cmd for rpcs:s
-var RPCCmd = &cobra.Command{
-	Use:   "rpc",
-	Short: "rpc sends commands against a single log server",
-	Long:  "rpc sends commands against a single log server",
-	Run:   nil,
-}
 
 // Client Command will read from the server
 var CreateTopicCommand = &cobra.Command{
@@ -82,16 +73,14 @@ var PublishSingleCommand = &cobra.Command{
 }
 
 // init sets up flags for the client commands
-func initCreateTopicCommand() {
-	RPCCmd.PersistentFlags().StringVarP(&rpcAddress, "rpc-address", "a", "localhost:7777", "Host where broker is running")
-	RPCCmd.PersistentFlags().StringVarP(&topic, "topic", "t", "", "Topic to create")
+func initAdminRPC() {
+	PublishSingleCommand.PersistentFlags().StringVarP(&rpcAddress, "rpc-address", "a", "localhost:7777", "Host where broker is running")
+	PublishSingleCommand.PersistentFlags().StringVarP(&topic, "topic", "t", "", "Topic to create")
 
 	PublishSingleCommand.Flags().StringVarP(&shard, "shard", "s", "", "Shard key")
 	PublishSingleCommand.Flags().StringVarP(&key, "key", "k", "", "Payload key")
 	PublishSingleCommand.Flags().StringVarP(&payload, "payload", "p", "", "Payload")
 
-	RPCCmd.AddCommand(CreateTopicCommand)
-	RPCCmd.AddCommand(PublishSingleCommand)
 }
 
 // Helper function that connects to the log server. Takes a function

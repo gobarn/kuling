@@ -11,24 +11,22 @@ import (
 
 // LogStoreClient client that can access and command a remote log store
 type LogStoreClient struct {
-	host string
-	port int
+	dialAddress string
 }
 
 // NewLogStoreClient Create new stream client
-func NewLogStoreClient(host string, port int) *LogStoreClient {
-	return &LogStoreClient{host, port}
+func NewLogStoreClient(address string) *LogStoreClient {
+	return &LogStoreClient{address}
 }
 
 // Fetch a batch of messages from the topic and partition as well
 func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 	start := time.Now()
-	address := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 
-	fmt.Println("client: Connecting to " + address)
+	fmt.Println("client: Connecting to " + c.dialAddress)
 
 	// Dial the fetch server
-	conn, err := net.Dial("tcp4", address)
+	conn, err := net.Dial("tcp4", c.dialAddress)
 
 	if err != nil {
 		// Could not connecto to address

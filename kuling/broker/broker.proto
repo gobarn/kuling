@@ -9,18 +9,24 @@ service Broker {
   // CreateTopic sends a create topic request down to the log store
   // and echoes the result back to the client
   rpc CreateTopic (CreateTopicRequest) returns (CreateTopicResponse) {}
+  rpc CommitPosition (CommitPositionRequest) returns (CommitPositionResponse) {}
   // AuthorizeFetch asks the broker for authorization to fetch messages from
   // a topic. The auth request contains a group name that multiple clients
   // that belong to the same group can use. The broker handles load balancing
   // the topic shards between the groups memebers and makes sure no two clients
   // can read the same messages
   rpc AuthorizeFetch (AuthFetchRequest) returns (AuthFetchResponse) {}
+  //
+  // // CommitPosition for a client. The client asks the broker to save it's
+  // // position so that it can continue from the same position.
+  // rpc CommitPosition (CommitPositionRequest) returns (CommitPositionRequest) {}
+  //
+  // rpc GetPosition (GetPositionRequest) returns (ConsumerPosition) {}
 }
 
 // CreateTopic request
 message CreateTopicRequest {
   string topic = 1;
-  int32 read_auth_ttl = 2;
 }
 
 // The response message containing the greetings
@@ -28,6 +34,19 @@ message CreateTopicResponse {
   string topic = 1;
   int32 status = 2;
   string message = 3;
+}
+
+// CommitPositionRequest commit consumers position in a topic.
+message CommitPositionRequest {
+  string consumer = 1;
+  string topic = 2;
+  string shard = 3;
+  int64 sequenceID = 4;
+  string group = 5;
+}
+
+// CommitPositionResponse commit position response
+message CommitPositionResponse {
 }
 
 // AuthFetchRequest
@@ -47,3 +66,15 @@ message AuthFetchResponse {
   int32 token = 1;
   repeated AddressTopicShard hosts = 2;
 }
+//
+// // CommitPositionRequest commit offset for a client.
+// message CommitPositionRequest {
+//   string topic = 1;
+//   string shard = 2;
+//   string group = 3;
+//   int64 position = 4;
+//   string consumer = 5;
+// }
+//
+// message CommitPositionResponse {
+// }

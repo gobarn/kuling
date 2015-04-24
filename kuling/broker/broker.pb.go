@@ -11,6 +11,8 @@ It is generated from these files:
 It has these top-level messages:
 	CreateTopicRequest
 	CreateTopicResponse
+	CommitPositionRequest
+	CommitPositionResponse
 	AuthFetchRequest
 	AddressTopicShard
 	AuthFetchResponse
@@ -33,8 +35,7 @@ var _ = proto.Marshal
 
 // CreateTopic request
 type CreateTopicRequest struct {
-	Topic       string `protobuf:"bytes,1,opt,name=topic" json:"topic,omitempty"`
-	ReadAuthTtl int32  `protobuf:"varint,2,opt,name=read_auth_ttl" json:"read_auth_ttl,omitempty"`
+	Topic string `protobuf:"bytes,1,opt,name=topic" json:"topic,omitempty"`
 }
 
 func (m *CreateTopicRequest) Reset()         { *m = CreateTopicRequest{} }
@@ -51,6 +52,27 @@ type CreateTopicResponse struct {
 func (m *CreateTopicResponse) Reset()         { *m = CreateTopicResponse{} }
 func (m *CreateTopicResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateTopicResponse) ProtoMessage()    {}
+
+// CommitPositionRequest commit consumers position in a topic.
+type CommitPositionRequest struct {
+	Consumer   string `protobuf:"bytes,1,opt,name=consumer" json:"consumer,omitempty"`
+	Topic      string `protobuf:"bytes,2,opt,name=topic" json:"topic,omitempty"`
+	Shard      string `protobuf:"bytes,3,opt,name=shard" json:"shard,omitempty"`
+	SequenceID int64  `protobuf:"varint,4,opt,name=sequenceID" json:"sequenceID,omitempty"`
+	Group      string `protobuf:"bytes,5,opt,name=group" json:"group,omitempty"`
+}
+
+func (m *CommitPositionRequest) Reset()         { *m = CommitPositionRequest{} }
+func (m *CommitPositionRequest) String() string { return proto.CompactTextString(m) }
+func (*CommitPositionRequest) ProtoMessage()    {}
+
+// CommitPositionResponse commit position response
+type CommitPositionResponse struct {
+}
+
+func (m *CommitPositionResponse) Reset()         { *m = CommitPositionResponse{} }
+func (m *CommitPositionResponse) String() string { return proto.CompactTextString(m) }
+func (*CommitPositionResponse) ProtoMessage()    {}
 
 // AuthFetchRequest
 type AuthFetchRequest struct {
@@ -98,6 +120,7 @@ type BrokerClient interface {
 	// CreateTopic sends a create topic request down to the log store
 	// and echoes the result back to the client
 	CreateTopic(ctx context.Context, in *CreateTopicRequest, opts ...grpc.CallOption) (*CreateTopicResponse, error)
+	CommitPosition(ctx context.Context, in *CommitPositionRequest, opts ...grpc.CallOption) (*CommitPositionResponse, error)
 	// AuthorizeFetch asks the broker for authorization to fetch messages from
 	// a topic. The auth request contains a group name that multiple clients
 	// that belong to the same group can use. The broker handles load balancing
@@ -123,6 +146,15 @@ func (c *brokerClient) CreateTopic(ctx context.Context, in *CreateTopicRequest, 
 	return out, nil
 }
 
+func (c *brokerClient) CommitPosition(ctx context.Context, in *CommitPositionRequest, opts ...grpc.CallOption) (*CommitPositionResponse, error) {
+	out := new(CommitPositionResponse)
+	err := grpc.Invoke(ctx, "/broker.Broker/CommitPosition", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *brokerClient) AuthorizeFetch(ctx context.Context, in *AuthFetchRequest, opts ...grpc.CallOption) (*AuthFetchResponse, error) {
 	out := new(AuthFetchResponse)
 	err := grpc.Invoke(ctx, "/broker.Broker/AuthorizeFetch", in, out, c.cc, opts...)
@@ -138,6 +170,7 @@ type BrokerServer interface {
 	// CreateTopic sends a create topic request down to the log store
 	// and echoes the result back to the client
 	CreateTopic(context.Context, *CreateTopicRequest) (*CreateTopicResponse, error)
+	CommitPosition(context.Context, *CommitPositionRequest) (*CommitPositionResponse, error)
 	// AuthorizeFetch asks the broker for authorization to fetch messages from
 	// a topic. The auth request contains a group name that multiple clients
 	// that belong to the same group can use. The broker handles load balancing
@@ -156,6 +189,18 @@ func _Broker_CreateTopic_Handler(srv interface{}, ctx context.Context, buf []byt
 		return nil, err
 	}
 	out, err := srv.(BrokerServer).CreateTopic(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Broker_CommitPosition_Handler(srv interface{}, ctx context.Context, buf []byte) (proto.Message, error) {
+	in := new(CommitPositionRequest)
+	if err := proto.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(BrokerServer).CommitPosition(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +226,10 @@ var _Broker_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateTopic",
 			Handler:    _Broker_CreateTopic_Handler,
+		},
+		{
+			MethodName: "CommitPosition",
+			Handler:    _Broker_CommitPosition_Handler,
 		},
 		{
 			MethodName: "AuthorizeFetch",

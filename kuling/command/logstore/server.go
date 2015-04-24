@@ -1,7 +1,6 @@
-package server
+package logstore
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -50,14 +49,14 @@ var ServerCmd = &cobra.Command{
 			case sig := <-osSignals:
 				if sig == os.Interrupt {
 					// Received Interrupt Signal. Stop the scheduler, workers and then shut down.
-					log.Println("Received exit signal, stopping server...")
+					log.Println("command: Received exit signal, stopping server...")
 					// Stop log store
 					logStore.Close()
 					// Wait for the log store to close down
 					for {
 						select {
 						case <-logStore.Closed():
-							fmt.Println("Closed")
+							log.Println("command: Closed")
 							os.Exit(0)
 						}
 					}
@@ -82,13 +81,13 @@ func runRPCCommandServer(logStore kuling.LogStore) {
 }
 
 // init sets up flags for the server commands
-func init() {
+func bootstrapServer() {
 	// host is available for all commands under server
 	ServerCmd.PersistentFlags().StringVarP(
 		&listenAddress,
 		"address",
 		"a",
-		"localhost:9999",
+		kuling.DefaultFetchAddress,
 		"Listen address for LogStore Server",
 	)
 
@@ -96,7 +95,7 @@ func init() {
 		&commandAddress,
 		"command-address",
 		"c",
-		"localhost:7777",
+		kuling.DefaultCommandAddress,
 		"Listen address for Command RPC Server",
 	)
 

@@ -1,10 +1,10 @@
 package broker
 
 import (
-	"fmt"
 	"log"
 	"net"
 
+	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/fredrikbackstrom/kuling/kuling/broker"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -16,6 +16,8 @@ var (
 	listenAddress string
 	// Log Servers address where the log server is running. For now only one.
 	logServerAddress string
+	// the path where the broker has it's files
+	brokerPath string
 )
 
 // Server Command will run the broker server
@@ -30,18 +32,20 @@ var BrokerServerCmd = &cobra.Command{
 
 func runBroker() {
 	// Create a listener at provided address
-	fmt.Println("Running broker")
+	log.Println("broker: Running")
+
 	lis, err := net.Listen("tcp", listenAddress)
 
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Fatalf("broker: Failed to listen: %v", err)
 		return
 	}
 
 	// Start a new GRPC server and register the broker service.
 	server := grpc.NewServer()
-	broker.RegisterBrokerServer(server, broker.NewBroker())
-	// Start serving.
+	b := broker.NewBroker(brokerPath, logServerAddress)
+	broker.RegisterBrokerServer(server, b)
+	// Start serving in blocking call
 	server.Serve(lis)
 }
 
@@ -52,7 +56,7 @@ func initBrokerServerCommands() {
 		&listenAddress,
 		"listen-address",
 		"a",
-		"localhost:8888",
+		kuling.DefaultBrokerAddress,
 		"Listen address",
 	)
 
@@ -60,7 +64,15 @@ func initBrokerServerCommands() {
 		&logServerAddress,
 		"log-server-address",
 		"l",
-		"localhost:9999",
+		kuling.DefaultCommandAddress,
 		"Log Server Address",
+	)
+
+	BrokerServerCmd.PersistentFlags().StringVarP(
+		&brokerPath,
+		"dir",
+		"d",
+		kuling.DefaultBrokerDir,
+		"Broker data directory",
 	)
 }

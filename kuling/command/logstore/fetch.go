@@ -1,4 +1,4 @@
-package client
+package logstore
 
 import (
 	"fmt"
@@ -9,55 +9,40 @@ import (
 
 // Flag variables
 var (
-	host           string
-	port           int
-	topic          string
+	fetchAddress   string
 	group          string
 	startID        int
 	maxNumMessages int
 )
 
-// Client Command will read from the server
-var ClientCmd = &cobra.Command{
+// FetchCmd will read from the server
+var FetchCmd = &cobra.Command{
 	Use:   "fetch",
-	Short: "Fetch messages on topic",
+	Short: "Fetch messages",
 	Long:  "Performs a one time fetch of messages from the topic and fetches\nmessages starting from the start sequence id and reading a max number \nof messages. Note that you will not get back as many messages as max \nspecifies if that amount of messages does not exist. ",
 	Run: func(cmd *cobra.Command, args []string) {
-		streamFrom()
+		client := kuling.NewLogStoreClient(fetchAddress)
+
+		err := client.Fetch(kuling.NewFetchRequest(topic, int64(startID), int64(maxNumMessages)))
+
+		if err != nil {
+			fmt.Println(err)
+		}
 	},
 }
 
-func streamFrom() {
-	c := kuling.NewLogStoreClient(host, port)
-
-	err := c.Fetch(kuling.NewFetchRequest(topic, int64(startID), int64(maxNumMessages)))
-
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
 // init sets up flags for the client commands
-func init() {
+func bootstrapFetch() {
 	// host is available for all commands under server
-	ClientCmd.PersistentFlags().StringVarP(
-		&host,
+	FetchCmd.PersistentFlags().StringVarP(
+		&fetchAddress,
 		"host",
 		"a",
-		"localhost",
+		kuling.DefaultCommandAddress,
 		"Host where server is running",
 	)
 
-	// port is available for all commands under server
-	ClientCmd.PersistentFlags().IntVarP(
-		&port,
-		"port",
-		"p",
-		9999,
-		"Port that server serves from",
-	)
-
-	ClientCmd.PersistentFlags().StringVarP(
+	FetchCmd.PersistentFlags().StringVarP(
 		&topic,
 		"topic",
 		"t",
@@ -65,7 +50,7 @@ func init() {
 		"Topic to stream messages from",
 	)
 
-	ClientCmd.PersistentFlags().StringVarP(
+	FetchCmd.PersistentFlags().StringVarP(
 		&group,
 		"group",
 		"g",
@@ -73,7 +58,7 @@ func init() {
 		"Group that this connecting client shall belong to",
 	)
 
-	ClientCmd.PersistentFlags().IntVarP(
+	FetchCmd.PersistentFlags().IntVarP(
 		&startID,
 		"start-sequence-id",
 		"s",
@@ -81,7 +66,7 @@ func init() {
 		"Sequence ID to start reading messages from",
 	)
 
-	ClientCmd.PersistentFlags().IntVarP(
+	FetchCmd.PersistentFlags().IntVarP(
 		&maxNumMessages,
 		"max-num-messages",
 		"m",

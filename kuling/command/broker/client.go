@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/fredrikbackstrom/kuling/kuling/broker"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
@@ -23,7 +24,7 @@ var CreateTopicCommand = &cobra.Command{
 	Long:  "Create a new topic",
 	Run: func(cmd *cobra.Command, args []string) {
 		withClient(func(c broker.BrokerClient) {
-			response, err := c.CreateTopic(context.Background(), &broker.CreateTopicRequest{topic, 30})
+			response, err := c.CreateTopic(context.Background(), &broker.CreateTopicRequest{topic})
 
 			if err != nil {
 				log.Fatalf("fail to exeucte request: %v", err)
@@ -44,7 +45,7 @@ func initBrokerClientCommands() {
 		&brokerAddress,
 		"broker-address",
 		"a",
-		"localhost:8888",
+		kuling.DefaultBrokerAddress,
 		"Host where broker is running",
 	)
 
@@ -71,7 +72,7 @@ func withClient(fn func(client broker.BrokerClient)) {
 	conn, err := grpc.Dial(brokerAddress)
 
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		log.Fatalf("failed to dial: %v", err)
 		return
 	}
 	defer conn.Close()

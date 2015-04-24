@@ -3,9 +3,8 @@ package command
 import (
 	"fmt"
 
-	"github.com/fredrikbackstrom/kuling/kuling/command/client"
-	"github.com/fredrikbackstrom/kuling/kuling/command/rpc"
-	"github.com/fredrikbackstrom/kuling/kuling/command/server"
+	"github.com/fredrikbackstrom/kuling/kuling/command/broker"
+	"github.com/fredrikbackstrom/kuling/kuling/command/logstore"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +31,7 @@ var VersionCmd = &cobra.Command{
 // Bootstrap adds all sub commands to Tolinr
 func init() {
 	// Append all child commands to the application command
-	AppCmd.AddCommand(VersionCmd, server.ServerCmd, client.ClientCmd)
-	AppCmd.AddCommand(rpc.RPCCmd)
+	AppCmd.AddCommand(VersionCmd)
+	AppCmd.AddCommand(logstore.LogStoreCmd)
+	AppCmd.AddCommand(broker.BokerRootCmd)
 }
