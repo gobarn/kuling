@@ -25,6 +25,10 @@ const (
 	ReqErrTopicLength = 315
 	// ReqErrTopic indicates that the start sequence number could not be read
 	ReqErrTopic = 320
+	// ReqErrShardLength indicates that the requests shard length byte is off
+	ReqErrShardLength = 330
+	// ReqErrShard indicates that the request shard value is off
+	ReqErrShard = 335
 	// StatusUnknownAction unknown action sent to server
 	StatusUnknownAction = 500
 )

@@ -7,14 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Flag variables
-var (
-	fetchAddress   string
-	group          string
-	startID        int
-	maxNumMessages int
-)
-
 // FetchCmd will read from the server
 var FetchCmd = &cobra.Command{
 	Use:   "fetch",
@@ -25,6 +17,7 @@ var FetchCmd = &cobra.Command{
 
 		req := kuling.NewFetchRequest(
 			topic,
+			shard,
 			int64(startID),
 			int64(maxNumMessages))
 
@@ -56,17 +49,17 @@ func bootstrapFetch() {
 	)
 
 	FetchCmd.PersistentFlags().StringVarP(
-		&group,
-		"group",
-		"g",
+		&shard,
+		"shard",
+		"s",
 		"",
-		"Group that this connecting client shall belong to",
+		"Shard in the stream to read from",
 	)
 
 	FetchCmd.PersistentFlags().IntVarP(
 		&startID,
-		"start-sequence-id",
-		"s",
+		"offset-sequence-id",
+		"o",
 		0,
 		"Sequence ID to start reading messages from",
 	)

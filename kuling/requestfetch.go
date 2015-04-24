@@ -29,6 +29,7 @@ import (
 // of messages to get back.
 type FetchRequest struct {
 	Topic           string
+	Shard           string
 	StartSequenceID int64
 	MaxNumMessages  int64
 }
@@ -40,8 +41,8 @@ type FetchRequestWriter struct {
 }
 
 // NewFetchRequest creates a new fetch request from the given information
-func NewFetchRequest(topic string, startSequenceID, maxNumMessages int64) *FetchRequest {
-	return &FetchRequest{topic, startSequenceID, maxNumMessages}
+func NewFetchRequest(topic, shard string, startSequenceID, maxNumMessages int64) *FetchRequest {
+	return &FetchRequest{topic, shard, startSequenceID, maxNumMessages}
 }
 
 // NewFetchRequestWriter creates and returns a fetch request writer that will
@@ -53,7 +54,7 @@ func NewFetchRequestWriter(w io.Writer) *FetchRequestWriter {
 
 // WriteFetchRequest writes the binary representation of the fetch request
 // to the io writer
-func (frw *FetchRequestWriter) WriteFetchRequest(topic string, startSequenceID, maxNumMessages int64) RequestError {
+func (frw *FetchRequestWriter) WriteFetchRequest(topic, shard string, startSequenceID, maxNumMessages int64) RequestError {
 	// Write action
 	frw.WriteHeader(ActionFetch)
 	// Write startSequenceID
@@ -65,6 +66,11 @@ func (frw *FetchRequestWriter) WriteFetchRequest(topic string, startSequenceID, 
 	binary.Write(frw, binary.BigEndian, int32(len(topicBytes)))
 	// Write payload
 	frw.Write(topicBytes)
+	// Write shard length
+	shardBytes := []byte(shard)
+	binary.Write(frw, binary.BigEndian, int32(len(shardBytes)))
+	// Write shard
+	frw.Write(shardBytes)
 
 	// Write to the underlying io Writer
 	err := frw.Flush()
@@ -124,6 +130,28 @@ func (r *FetchRequestReader) ReadFetchRequest() (*FetchRequest, RequestError) {
 		return nil, &RequestReadError{ReqErrTopic, err.Error()}
 	}
 
+	var shardLength int32
+	err = binary.Read(r, binary.BigEndian, &shardLength) // Reads 4
+
+	if err != nil {
+		// Write back that we could not read topic length
+		return nil, &RequestReadError{ReqErrShardLength, err.Error()}
+	}
+
+	shard := make([]byte, shardLength) // Reads len payload
+	_, err = r.Read(shard)
+
+	if err != nil {
+		// Write back that we could not read the topic
+		return nil, &RequestReadError{ReqErrShard, err.Error()}
+	}
+
 	// Success
-	return &FetchRequest{string(topic), startSequenceID, maxNumMessages}, nil
+	return &FetchRequest{
+			string(topic),
+			string(shard),
+			startSequenceID,
+			maxNumMessages,
+		},
+		nil
 }

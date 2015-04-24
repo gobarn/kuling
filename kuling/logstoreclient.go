@@ -38,7 +38,7 @@ func (c *LogStoreClient) Fetch(fr *FetchRequest) error {
 
 	// Send fetch request to server
 	fetchReqWriter := NewFetchRequestWriter(conn)
-	err = fetchReqWriter.WriteFetchRequest(fr.Topic, fr.StartSequenceID, fr.MaxNumMessages)
+	err = fetchReqWriter.WriteFetchRequest(fr.Topic, fr.Shard, fr.StartSequenceID, fr.MaxNumMessages)
 
 	if err != nil {
 		// Could not write fetch request

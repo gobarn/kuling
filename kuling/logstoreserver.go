@@ -81,7 +81,12 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		// Write success response
 		responseWriter.WriteHeader(ReqSuccess)
 		// Copy log store chunk over to the connection
-		bytesCopied, copyErr := s.logStore.Copy(fetchRequest.Topic, fetchRequest.StartSequenceID, fetchRequest.MaxNumMessages, responseWriter)
+		bytesCopied, copyErr := s.logStore.Copy(
+			fetchRequest.Topic,
+			fetchRequest.Shard,
+			fetchRequest.StartSequenceID,
+			fetchRequest.MaxNumMessages,
+			responseWriter)
 
 		if copyErr != nil {
 			// Could not copy, now we have already written the success header... what to do..

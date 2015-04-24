@@ -200,16 +200,17 @@ func (idx *LogIndex) Next(offsetValue, messageSize int64) (int64, error) {
 // The sequence ID cannot be found then ErrSequenceIDNotFound is returned.
 // If any trouble during file operations ErrIndexFileCouldNotBeOpened is
 // returned
-// On success the offset value is returned and nil error
-func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
+// On success the offset and message size is returned, on failure an
+// error is returned
+func (idx *LogIndex) GetOffset(sequenceID int64) (int64, int64, error) {
 	if !idx.running {
-		return 0, ErrIndexClosed
+		return 0, 0, ErrIndexClosed
 	}
 	if sequenceID < 0 {
-		return 0, ErrSequenceIDNotFound
+		return 0, 0, ErrSequenceIDNotFound
 	}
 	if sequenceID > (idx.nextSequenceID - 1) {
-		return 0, ErrSequenceIDNotFound
+		return 0, 0, ErrSequenceIDNotFound
 	}
 
 	// Seek the write file to the write location of the sequenceID
@@ -228,7 +229,7 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	readFile, err := os.Open(idx.path)
 
 	if err != nil {
-		return 0, ErrIndexFileCouldNotBeOpened
+		return 0, 0, ErrIndexFileCouldNotBeOpened
 	}
 
 	// Seek to the seek offset of the sequence ID. As clients are most likely
@@ -237,7 +238,7 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 
 	if err == io.EOF {
 		// Searched to the end of the file and could not find the sequence
-		return 0, ErrSequenceIDNotFound
+		return 0, 0, ErrSequenceIDNotFound
 	} else if err != nil {
 		panic(err)
 	}
@@ -246,12 +247,21 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, error) {
 	err = binary.Read(readFile, binary.BigEndian, &value) // Reads 8
 	if err == io.EOF {
 		// Searched to the end of the file and could not find the sequence
-		return 0, ErrSequenceIDNotFound
+		return 0, 0, ErrSequenceIDNotFound
 	} else if err != nil {
 		panic(err)
 	}
 
-	return value, nil
+	var messageSize int64
+	err = binary.Read(readFile, binary.BigEndian, &messageSize) // Reads 8
+	if err == io.EOF {
+		// Searched to the end of the file and could not find the sequence
+		return 0, 0, ErrSequenceIDNotFound
+	} else if err != nil {
+		panic(err)
+	}
+
+	return value, messageSize, nil
 }
 
 // GetOffsetMMAP finds the offset value stored under the sequenceID key. If

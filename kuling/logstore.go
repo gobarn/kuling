@@ -2,6 +2,7 @@ package kuling
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -38,10 +39,10 @@ type LogStore interface {
 	Write(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as
 	// parsed messages. It reads from the topic.
-	Read(topic string, startSequenceID, maxMessages int64) ([]*Message, error)
+	Read(topic, shard string, startSequenceID, maxMessages int64) ([]*Message, error)
 	// Copy will copy a collection of messages from the topic and partition
 	// from the store into the provied writer
-	Copy(topic string, startSequenceID, maxMessages int64, w io.Writer) (int64, error)
+	Copy(topic, shard string, startSequenceID, maxMessages int64, w io.Writer) (int64, error)
 	// Closed returns a channel that is closed when the Log is closed
 	// or times out.
 	Closed() <-chan struct{}
@@ -113,7 +114,19 @@ func OpenLogStore(root string, permDirectories, permData os.FileMode) LogStore {
 	indexes := make(map[string]*LogIndex)
 
 	// Create log store
-	ls := &TopicLogStore{true, permDirectories, permData, root, offsets, logs, locks, indexes, make(chan (struct{}))}
+	ls := &TopicLogStore{
+		true,
+		permDirectories,
+		permData,
+		root,
+		offsets,
+		logs,
+		locks,
+		indexes,
+		make(chan (struct{})),
+	}
+
+	// Load all the topics from the directory structure
 	ls.loadFromRootPath(root)
 
 	return ls
@@ -304,12 +317,12 @@ func (ls *TopicLogStore) Write(topic, shard string, key, payload []byte) error {
 		return nil
 	}
 
-	return errors.New("Topic index does not exist")
+	return ErrTopicNotExist
 }
 
 // Read from start sequence and max number of messages forward and convert the
 // binary messages into deserialized messages
-func (ls *TopicLogStore) Read(topic string, startSequenceID, maxMessages int64) ([]*Message, error) {
+func (ls *TopicLogStore) Read(topic, shard string, startSequenceID, maxMessages int64) ([]*Message, error) {
 	if !ls.running {
 		return nil, ErrClosed
 	}
@@ -348,7 +361,7 @@ func (ls *TopicLogStore) offsetOf(topic string, sequenceID int64) (int64, error)
 		return 0, errors.New("Index not found")
 	}
 
-	offset, err := index.GetOffset(sequenceID)
+	offset, _, err := index.GetOffset(sequenceID)
 	if err != nil {
 		// Could not get offset for sequence ID
 		return 0, err
@@ -358,10 +371,12 @@ func (ls *TopicLogStore) offsetOf(topic string, sequenceID int64) (int64, error)
 }
 
 // Copy from start sequence and max number of messages forward into the writer
-func (ls *TopicLogStore) Copy(topic string, startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
+func (ls *TopicLogStore) Copy(topic, shard string, startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
 	if !ls.running {
 		return 0, ErrClosed
 	}
+
+	fmt.Println(startSequenceID, maxMessages)
 
 	// Check that the topic requested to read from exists
 	if _, ok := ls.logs[topic]; ok {
