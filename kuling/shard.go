@@ -1,0 +1,241 @@
+package kuling
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+var (
+	// ErrShardIllegalKey returned when the key is not set
+	ErrShardIllegalKey = errors.New("shard: illegal key")
+	// ErrShardIllegalPayload returned when the payload is not set
+	ErrShardIllegalPayload = errors.New("shard: illegal key")
+	// ErrShardIllegalStartSequenceID returned when start sequence is negative
+	ErrShardIllegalStartSequenceID = errors.New("shard: illegal start sequence ID")
+	// ErrShardIllegalMaxMessages returned when max messages is negative
+	ErrShardIllegalMaxMessages = errors.New("shard: illegal start max messages")
+)
+
+// Shard store data in one specific shard
+type Shard interface {
+	// Write data with key and payload to the active segment in the shard
+	Append(key, payload []byte) error
+	// Read data starting form sequenceID and reading
+	// max number of messages
+	Read(startSequenceID, maxMessages int64) ([]*Message, error)
+	// Copy data starting form sequenceID and reading
+	// max number of messages into the io writer
+	Copy(startSequenceID, maxMessages int64, w io.Writer) (int64, error)
+	// Size returns the size in bytes of all the data in the shard
+	Size() int64
+}
+
+// FSShard file system shards. Keeps a zero based index for the shard that
+// spans all segments. Knows the active segment where writes are going
+type FSShard struct {
+	dir string
+	// index that spans all segments with sequence ID to offset mapping
+	index *LogIndex
+	// array of segments
+	segments []Segment
+	// active segment
+	activeSegment Segment
+	// mutex for writes, reads do not use this mutex
+	wlock *sync.RWMutex
+}
+
+// OpenFSShard opens or creates a shard from the file path
+func OpenFSShard(dir string) (*FSShard, error) {
+	// Create or load index
+	index, err := OpenIndex(path.Join(dir, "shard.idx"))
+	if err != nil {
+		log.Println("shard: Could not open shard index file")
+		return nil, err
+	}
+
+	var segments []Segment
+
+	// Load segment files, important that we load them in correct order
+	// such that the first segment file is loaded first.
+	err = filepath.Walk(dir, func(topicDir string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(f.Name(), "seg") {
+			return nil
+		}
+
+		// Found segment file
+		segment, err := NewFSSegment(f.Name(), 0600)
+		if err != nil {
+			return err
+		}
+
+		segments = append(segments, segment)
+
+		return nil
+	})
+	if err != nil {
+		log.Println("shard: Could not load segment file(s)")
+		return nil, err
+	}
+
+	if len(segments) == 0 {
+		// If no segments found then this is a new shard, create the initial
+		// segment file
+		segment, err := NewFSSegment(path.Join(dir, createSegmentName(1)), 0600)
+		if err != nil {
+			log.Println("shard: Could not load segment file(s)")
+			return nil, err
+		}
+
+		segments = append(segments, segment)
+	}
+
+	return &FSShard{
+			dir,
+			index,
+			segments,
+			segments[len(segments)-1],
+			&sync.RWMutex{},
+		},
+		nil
+}
+
+// Create segment name from the
+func createSegmentName(segmentNumber int) string {
+	return fmt.Sprintf("%10d", segmentNumber) + ".seg"
+}
+
+// Append key and payload message
+func (s *FSShard) Append(key, payload []byte) error {
+	if len(key) == 0 {
+		return ErrShardIllegalKey
+	}
+	if len(key) == 0 {
+		return ErrShardIllegalPayload
+	}
+	// Acquire and release lock after append is done
+	s.wlock.Lock()
+	defer s.wlock.Unlock()
+
+	// Get next sequenceID from index
+	sequenceID, err := s.index.Next(s.activeSegment.Size(), CalculateMessageSize(key, payload))
+	if err != nil {
+		return err
+	}
+
+	// Create message from key and payload
+	m := NewMessage(sequenceID, key, payload)
+	// Append the message to the active segment
+	err = s.activeSegment.Append(m)
+	if err != nil {
+		// TODO revert sequence id somehow...
+		return err
+	}
+
+	return nil
+}
+
+// Read messages starting from start sequence ID and max number of messages
+// forwards
+func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(startOffset, endOffset int64, segment Segment) error) error {
+	if startSequenceID < 0 {
+		return ErrShardIllegalStartSequenceID
+	}
+	if maxMessages < 0 {
+		return ErrShardIllegalMaxMessages
+	}
+
+	// Get offset from index
+	startOffset, _, err := s.index.GetOffset(startSequenceID)
+	if err == ErrSequenceIDNotFound {
+		// Could not find start offset
+		return ErrShardIllegalStartSequenceID
+	} else if err != nil {
+		return err
+	}
+
+	segment, err := s.getSegmentForOffset(startOffset)
+	if err != nil {
+		return errors.New("shard: Could not find segment for start sequence ID, have the file been removed?")
+	}
+
+	endOffset, _, err := s.index.GetOffset(startSequenceID + maxMessages)
+	if err == ErrSequenceIDNotFound {
+		// Fewer messages than max messages in shard, take the whole shard
+		err = nil
+		// grab the entire segment
+		endOffset = segment.Size()
+	} else if err != nil {
+		return err
+	}
+
+	return action(startOffset, endOffset, segment)
+}
+
+// Read messages starting from start sequence ID and max number of messages
+// forwards
+func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
+	var messages []*Message
+
+	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment Segment) error {
+		// read and pars into messages
+		var err error
+		messages, err = segment.Read(startOffset, endOffset)
+		return err
+	})
+
+	return messages, err
+}
+
+// Copy copies from the segment that owns the sequence ID and then takes
+// max number of messages forward
+func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
+	var copied int64
+	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment Segment) error {
+		// read and pars into messages
+		var err error
+		copied, err = segment.Copy(startOffset, endOffset, w)
+		return err
+	})
+
+	return copied, err
+}
+
+func (s *FSShard) getSegmentForOffset(startOffset int64) (Segment, error) {
+	var segment Segment
+
+	// Get segment for offset
+	maxOffset := int64(0)
+	for _, possibleSegment := range s.segments {
+		maxOffset += possibleSegment.Size()
+		if maxOffset > startOffset {
+			// We found the segment that contain the start segment offset
+			segment = possibleSegment
+		}
+	}
+
+	if segment == nil {
+		return nil, errors.New("shard: No segment file found for sequence ID")
+	}
+
+	return segment, nil
+}
+
+// Size returns the total size of all segments
+func (s *FSShard) Size() int64 {
+	var total int64
+	for _, segment := range s.segments {
+		total += segment.Size()
+	}
+
+	return total
+}

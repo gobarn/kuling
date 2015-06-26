@@ -38,7 +38,7 @@ func (s *RPCCommandServer) CreateTopic(ctx context.Context, r *CreateTopicReques
 func (s *RPCCommandServer) Publish(ctx context.Context, r *PublishRequest) (*PublishRequestResponse, error) {
 	log.Println("command: Publish on topic:", r.Topic)
 	// Create topic in log store
-	err := s.logStore.Write(r.Topic, r.Shard, r.Key, r.Payload)
+	err := s.logStore.Append(r.Topic, r.Shard, r.Key, r.Payload)
 
 	if err != nil {
 		log.Println("command:", err.Error())

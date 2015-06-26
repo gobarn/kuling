@@ -35,8 +35,8 @@ type LogStore interface {
 	// CreateTopic creates a new topic. If the topic exists it returns
 	// a topic already exists error
 	CreateTopic(topic string) error
-	// Write inserts the paylooad into the topic and partition
-	Write(topic, shard string, key, payload []byte) error
+	// Append inserts the paylooad into the topic and partition
+	Append(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as
 	// parsed messages. It reads from the topic.
 	Read(topic, shard string, startSequenceID, maxMessages int64) ([]*Message, error)
@@ -265,8 +265,8 @@ func (ls *TopicLogStore) createTopicIfNotExists(topic string) (*os.File, error) 
 	return dataFile, nil
 }
 
-// Write the keyed message payload into the DB onto the topics partition
-func (ls *TopicLogStore) Write(topic, shard string, key, payload []byte) error {
+// Append the keyed message payload into the DB onto the topics partition
+func (ls *TopicLogStore) Append(topic, shard string, key, payload []byte) error {
 	// Guards
 	if !ls.running {
 		return ErrClosed
