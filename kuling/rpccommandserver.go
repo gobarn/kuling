@@ -23,7 +23,7 @@ func NewRPCCommandServer(ls LogStore) *RPCCommandServer {
 func (s *RPCCommandServer) CreateTopic(ctx context.Context, r *CreateTopicRequest) (*CreateTopicResponse, error) {
 	log.Println("command: Create Topic", r.Topic)
 	// Create topic in log store
-	err := s.logStore.CreateTopic(r.Topic)
+	err := s.logStore.CreateTopic(r.Topic, 1)
 
 	if err != nil {
 		return nil, err

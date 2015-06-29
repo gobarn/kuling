@@ -19,6 +19,9 @@ var (
 	ErrShardIllegalPayload = errors.New("shard: illegal key")
 	// ErrShardIllegalStartSequenceID returned when start sequence is negative
 	ErrShardIllegalStartSequenceID = errors.New("shard: illegal start sequence ID")
+	// ErrShardStartSequenceIDNotFound returned when start sequence is not found
+	// which could be that the sequence ID is bigger than the shard
+	ErrShardStartSequenceIDNotFound = errors.New("shard: start sequence ID not found")
 	// ErrShardIllegalMaxMessages returned when max messages is negative
 	ErrShardIllegalMaxMessages = errors.New("shard: illegal start max messages")
 )
@@ -47,17 +50,31 @@ type FSShard struct {
 	segments []Segment
 	// active segment
 	activeSegment Segment
+	// segment max size
+	segmentMaxSByteSize int64
+	// data files and directories permissions
+	permDirectories, permData os.FileMode
 	// mutex for writes, reads do not use this mutex
 	wlock *sync.RWMutex
 }
 
 // OpenFSShard opens or creates a shard from the file path
-func OpenFSShard(dir string) (*FSShard, error) {
-	// Create or load index
-	index, err := OpenIndex(path.Join(dir, "shard.idx"))
+func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permData os.FileMode) (*FSShard, error) {
+	// Check that the shard directory exist, if not then create the directory
+	stat, err := os.Stat(dir)
+	if err != nil || !stat.IsDir() {
+		log.Printf("shard: Creating shard directory %s", dir)
+		// The directory does not exist, lets create it
+		err := os.Mkdir(dir, permDirectories)
+
+		if err != nil {
+			return nil, fmt.Errorf("shard: Could not create shard directory %s: %s", dir, err)
+		}
+	}
+
+	index, err := OpenIndex(path.Join(dir, "shard.idx"), permData)
 	if err != nil {
-		log.Println("shard: Could not open shard index file")
-		return nil, err
+		return nil, fmt.Errorf("shard: Could not open shard index file: %s", err)
 	}
 
 	var segments []Segment
@@ -68,12 +85,13 @@ func OpenFSShard(dir string) (*FSShard, error) {
 		if f.IsDir() {
 			return nil
 		}
-		if !strings.HasSuffix(f.Name(), "seg") {
+		// If not segment file then skip it
+		if !strings.HasSuffix(f.Name(), ".seg") {
 			return nil
 		}
 
 		// Found segment file
-		segment, err := NewFSSegment(f.Name(), 0600)
+		segment, err := OpenFSSegment(path.Join(dir, f.Name()), permData)
 		if err != nil {
 			return err
 		}
@@ -83,16 +101,16 @@ func OpenFSShard(dir string) (*FSShard, error) {
 		return nil
 	})
 	if err != nil {
-		log.Println("shard: Could not load segment file(s)")
+		log.Printf("shard: Could not load segment file(s): %s\n", err)
 		return nil, err
 	}
 
 	if len(segments) == 0 {
 		// If no segments found then this is a new shard, create the initial
 		// segment file
-		segment, err := NewFSSegment(path.Join(dir, createSegmentName(1)), 0600)
+		segment, err := OpenFSSegment(path.Join(dir, createSegmentName(1)), permData)
 		if err != nil {
-			log.Println("shard: Could not load segment file(s)")
+			log.Printf("shard: Could not load segment file(s): %s", err)
 			return nil, err
 		}
 
@@ -104,14 +122,12 @@ func OpenFSShard(dir string) (*FSShard, error) {
 			index,
 			segments,
 			segments[len(segments)-1],
+			segmentMaxSByteSize,
+			permDirectories,
+			permData,
 			&sync.RWMutex{},
 		},
 		nil
-}
-
-// Create segment name from the
-func createSegmentName(segmentNumber int) string {
-	return fmt.Sprintf("%10d", segmentNumber) + ".seg"
 }
 
 // Append key and payload message
@@ -126,8 +142,27 @@ func (s *FSShard) Append(key, payload []byte) error {
 	s.wlock.Lock()
 	defer s.wlock.Unlock()
 
+	// Calculate total message size as it will appear on disk
+	msgSize := CalculateMessageSize(key, payload)
+
+	// Check if the active segment plus this message will become
+	// greater than max segment size, in such case
+	if s.activeSegment.Size()+msgSize > s.segmentMaxSByteSize {
+		// Create new segment, add it to list of segments and set to
+		// active
+		segmentName := path.Join(s.dir, createSegmentName(len(s.segments)+1))
+		newSegment, err := OpenFSSegment(segmentName, s.permData)
+		if err != nil {
+			// Could not create shard, most likely due to out of disk or permissions
+			// in segment directory has changed from the outside
+			return err
+		}
+		s.segments = append(s.segments, newSegment)
+		s.activeSegment = newSegment
+	}
+
 	// Get next sequenceID from index
-	sequenceID, err := s.index.Next(s.activeSegment.Size(), CalculateMessageSize(key, payload))
+	sequenceID, err := s.index.Next(s.activeSegment.Size(), msgSize)
 	if err != nil {
 		return err
 	}
@@ -158,7 +193,7 @@ func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(sta
 	startOffset, _, err := s.index.GetOffset(startSequenceID)
 	if err == ErrSequenceIDNotFound {
 		// Could not find start offset
-		return ErrShardIllegalStartSequenceID
+		return ErrShardStartSequenceIDNotFound
 	} else if err != nil {
 		return err
 	}
@@ -224,7 +259,7 @@ func (s *FSShard) getSegmentForOffset(startOffset int64) (Segment, error) {
 	}
 
 	if segment == nil {
-		return nil, errors.New("shard: No segment file found for sequence ID")
+		return nil, fmt.Errorf("shard: No segment file found for offset %d", startOffset)
 	}
 
 	return segment, nil
@@ -238,4 +273,14 @@ func (s *FSShard) Size() int64 {
 	}
 
 	return total
+}
+
+// String from stringer interface
+func (s *FSShard) String() string {
+	return fmt.Sprintf("path: %s segments: %d size: %d", s.dir, len(s.segments), s.Size())
+}
+
+// Create segment name from the
+func createSegmentName(segmentNumber int) string {
+	return fmt.Sprintf("%010d.seg", segmentNumber)
 }

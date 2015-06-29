@@ -34,7 +34,7 @@ var ErrPayloadNotProvided = errors.New("Payload not provided")
 type LogStore interface {
 	// CreateTopic creates a new topic. If the topic exists it returns
 	// a topic already exists error
-	CreateTopic(topic string) error
+	CreateTopic(topic string, numShards int) error
 	// Append inserts the paylooad into the topic and partition
 	Append(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as
@@ -163,7 +163,7 @@ func (ls *TopicLogStore) loadFromRootPath(root string) error {
 
 			if strings.HasSuffix(f.Name(), "idx") {
 				// Found index file, load it up into the log store
-				index, err := OpenIndex(path)
+				index, err := OpenIndex(path, 0755)
 
 				if err != nil {
 					return err
@@ -196,7 +196,7 @@ func (ls *TopicLogStore) loadFromRootPath(root string) error {
 }
 
 // CreateTopic creates a topic if it does not already exist.
-func (ls *TopicLogStore) CreateTopic(topic string) error {
+func (ls *TopicLogStore) CreateTopic(topic string, numShards int) error {
 	_, err := ls.createTopicIfNotExists(topic)
 
 	return err
@@ -251,7 +251,7 @@ func (ls *TopicLogStore) createTopicIfNotExists(topic string) (*os.File, error) 
 	ls.locks[topic] = &sync.RWMutex{}
 
 	// Open Index from file
-	index, err := OpenIndex(path.Join(ls.rootPath, topic, topic+".idx"))
+	index, err := OpenIndex(path.Join(ls.rootPath, topic, topic+".idx"), 0755)
 
 	if err != nil {
 		// Could not open index!

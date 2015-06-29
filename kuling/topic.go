@@ -1,7 +1,6 @@
 package kuling
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,11 +8,7 @@ import (
 	"path"
 )
 
-var (
-	// ErrUnknownShard returned when the shard requested
-	// is unknown to the topic
-	ErrUnknownShard = errors.New("topic: Unknown shard")
-)
+var ()
 
 // Topic store data in a topic
 type Topic interface {
@@ -38,18 +33,26 @@ type FSTopic struct {
 }
 
 // OpenFSTopicWithFixedShardingStrategy opens or creates a new file system topic
-func OpenFSTopicWithFixedShardingStrategy(dir string, numShards int) (*FSTopic, error) {
+func OpenFSTopicWithFixedShardingStrategy(dir string, numShards int, config *FSConfig) (*FSTopic, error) {
+	if config.PermDirectories < 0700 {
+		panic("topic: Directories must have execute right for running user")
+	}
+	if config.PermData < 0600 {
+		panic("topic: Files must have read and write permissions for running user")
+	}
+
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
+		log.Printf("topic: Creating topic directory %s", dir)
 		// The directory does not exist, lets create it
-		err := os.Mkdir(dir, 0600)
+		err := os.Mkdir(dir, config.PermDirectories)
 
 		if err != nil {
 			return nil, fmt.Errorf("topic: Could not create topic directory %s", dir)
 		}
 	}
 
-	var shards map[string]Shard
+	shards := make(map[string]Shard)
 	// // Loop over all directories and loadup the shards
 	// // Load segment files, important that we load them in correct order
 	// // such that the first segment file is loaded first.
@@ -76,7 +79,7 @@ func OpenFSTopicWithFixedShardingStrategy(dir string, numShards int) (*FSTopic, 
 
 	// Create shard factory method for the sharding strategy
 	factory := func(name string) (Shard, error) {
-		return NewFSShard(path.Join(dir, name))
+		return OpenFSShard(path.Join(dir, name), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
 	}
 
 	strategy, err := NewFixedShardsShardingStrategy(numShards, factory)
@@ -85,6 +88,7 @@ func OpenFSTopicWithFixedShardingStrategy(dir string, numShards int) (*FSTopic, 
 		return nil, err
 	}
 
+	// Create struct and return in
 	return &FSTopic{
 			dir,
 			shards,
@@ -99,7 +103,7 @@ func (t *FSTopic) Append(shard string, key, payload []byte) error {
 		return s.Append(key, payload)
 	}
 
-	return ErrUnknownShard
+	return fmt.Errorf("topic: Unknown shard %s", shard)
 }
 
 // Read from topic shard from start sequence id and max messages
@@ -108,7 +112,7 @@ func (t *FSTopic) Read(shard string, startSequenceID, maxMessages int64) ([]*Mes
 		return s.Read(startSequenceID, maxMessages)
 	}
 
-	return nil, ErrUnknownShard
+	return nil, fmt.Errorf("topic: Unknown shard %s", shard)
 }
 
 // Copy from topic shard from start sequence id and max messages into io writer
@@ -117,5 +121,10 @@ func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Wr
 		return s.Copy(startSequenceID, maxMessages, w)
 	}
 
-	return 0, ErrUnknownShard
+	return 0, fmt.Errorf("topic: Unknown shard %s", shard)
+}
+
+// String from stringer interface
+func (t *FSTopic) String() string {
+	return fmt.Sprintf("path: %s shards: %d", t.dir, len(t.shards))
 }

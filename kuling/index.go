@@ -60,9 +60,9 @@ type LogIndex struct {
 	*memoryMapped
 }
 
-// OpenIndex creates a index from the file if it does not exist
+// OpenIndex opens or creates a index from the file if it does not exist
 // and opens the index if it already exists
-func OpenIndex(path string) (*LogIndex, error) {
+func OpenIndex(path string, permData os.FileMode) (*LogIndex, error) {
 	if len(path) == 0 {
 		return nil, ErrPathNotSet
 	}
@@ -72,7 +72,7 @@ func OpenIndex(path string) (*LogIndex, error) {
 	// Permissions set to R/W for the user executing
 	var err error
 	var writeFile *os.File
-	if writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600); err != nil {
+	if writeFile, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, permData); err != nil {
 		// This should not happen, may be that the file has wrong permissions.
 		return nil, err
 	}

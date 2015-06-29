@@ -101,7 +101,6 @@ func (w *MessageWriter) WriteMessage(m *Message) (int64, error) {
 
 	// Flush the buffer to the writer
 	err = w.Flush()
-
 	if err != nil {
 		// Could not commit the message to the writer
 		return 0, err

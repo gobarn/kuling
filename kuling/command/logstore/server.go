@@ -25,17 +25,23 @@ var ServerCmd = &cobra.Command{
 	Short: "Execute operation on Kuling Server",
 	Long:  "Execute operation on Kuling Server",
 	Run: func(cmd *cobra.Command, args []string) {
+		// Create global config
+		c := &kuling.FSConfig{
+			0755,
+			0655,
+			1024 * 1000 * 10, // 10MB
+		}
 		// Open the log store
-		logStore := kuling.OpenFSTopicLogStore(dataDir, 0700, 0600)
+		logStore := kuling.OpenFSTopicLogStore(dataDir, c)
 
 		// CREATE TEMP TOPIC
-		if err := logStore.CreateTopic("emails"); err != nil {
+		if err := logStore.CreateTopic("emails", 10); err != nil {
 			log.Fatal(err)
 		}
 
 		// TEMP writes to get some data
-		for i := 0; i < 3; i++ {
-			err := logStore.Append("emails", "part_01", []byte("john@doe.com"), []byte("Has all the stuff"))
+		for i := 0; i < 100000; i++ {
+			err := logStore.Append("emails", "0", []byte("john@doe.com"), []byte("Has all the stuff"))
 
 			if err != nil {
 				panic(err)

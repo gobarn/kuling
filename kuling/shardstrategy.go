@@ -24,10 +24,10 @@ type FixedShardsShardingStrategy struct {
 // fixed set of shards determined by the size parameter
 func NewFixedShardsShardingStrategy(size int,
 	factory func(name string) (Shard, error)) (*FixedShardsShardingStrategy, error) {
-	var shards map[string]Shard
+	var shards = make(map[string]Shard)
 
 	for i := 0; i < size; i++ {
-		shardKey := fmt.Sprintf("shard_%010d", i)
+		shardKey := fmt.Sprintf("%d", i)
 		shard, err := factory(shardKey)
 		if err != nil {
 			return nil, err
@@ -45,10 +45,10 @@ func NewFixedShardsShardingStrategy(size int,
 
 // Get specific shard from the shard key. If the shard key do not exist
 // an error is returned
-func (fs *FixedShardsShardingStrategy) Get(shardKey string) (Shard, error) {
-	if s, ok := fs.shards[shardKey]; ok {
+func (fs *FixedShardsShardingStrategy) Get(shard string) (Shard, error) {
+	if s, ok := fs.shards[shard]; ok {
 		return s, nil
 	}
 
-	return nil, ErrUnknownShard
+	return nil, fmt.Errorf("topic: Unknown shard %s", shard)
 }

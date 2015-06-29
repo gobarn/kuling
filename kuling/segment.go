@@ -34,24 +34,29 @@ type Segment interface {
 var (
 	// ErrSegmentStartOffset returned when start offset larger than file
 	// or when negative
-	ErrSegmentStartOffset = errors.New("Segment start offset illegal")
+	ErrSegmentStartOffset = errors.New("segment: Start offset illegal")
 	// ErrSegmentEndOffset returned when end offset larger than file
 	// of when negative
-	ErrSegmentEndOffset = errors.New("Segment end offset illegal")
+	ErrSegmentEndOffset = errors.New("segment: End offset illegal")
 )
 
 // FSSegment s
 type FSSegment struct {
-	// filePath
-	filePath string
+	// File Path of the segment
+	FilePath string
 	// segment file handle used for writing
 	whandle *os.File
 	// size of segment in bytes
 	size int64
 }
 
-// NewFSSegment creates a new file system segment
-func NewFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
+// OpenFSSegment opens or creates a new file system segment
+func OpenFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
+	// Check if the file exists, if not log that it will be created
+	_, err := os.Stat(fileName)
+	if err != nil {
+		log.Printf("segment: Creating segment file %s", fileName)
+	}
 	// Open or create the segment file.
 	segmentFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
 	if err != nil {
@@ -103,7 +108,7 @@ func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle 
 		return SegmentError{ErrSegmentEndOffset, ss}
 	}
 
-	readHandle, err := os.OpenFile(ss.filePath, os.O_RDONLY, 0500)
+	readHandle, err := os.OpenFile(ss.FilePath, os.O_RDONLY, 0500)
 	if err != nil {
 		log.Fatalf("segment: Could not get read file handle %v", ss.whandle.Name())
 		return SegmentError{err, ss}
@@ -113,7 +118,7 @@ func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle 
 	// Seek to the offset position
 	_, err = readHandle.Seek(offset, os.SEEK_SET)
 	if err != nil {
-		log.Fatalf("segment: Could seek to offset in segment %v", ss.whandle.Name())
+		log.Fatalf("segment: Could not seek to offset in segment %v", ss.whandle.Name())
 		return SegmentError{err, ss}
 	}
 
@@ -145,7 +150,7 @@ func (ss *FSSegment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 
 	err := ss.readAction(offset, endOffset, func(readHandle *os.File) error {
 		var err error
-		copied, err = io.CopyN(w, readHandle, endOffset-endOffset)
+		copied, err = io.CopyN(w, readHandle, endOffset-offset)
 		return err
 	})
 
@@ -155,4 +160,9 @@ func (ss *FSSegment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 // Size returns the size in bytes of the segment
 func (ss *FSSegment) Size() int64 {
 	return ss.size
+}
+
+// String from stringer interface
+func (ss *FSSegment) String() string {
+	return fmt.Sprintf("path: %s size: %d", ss.FilePath, ss.size)
 }
