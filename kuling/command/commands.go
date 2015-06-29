@@ -32,6 +32,6 @@ var VersionCmd = &cobra.Command{
 func init() {
 	// Append all child commands to the application command
 	AppCmd.AddCommand(VersionCmd)
-	AppCmd.AddCommand(logstore.LogStoreCmd)
+	AppCmd.AddCommand(logstore.ServerCmd)
 	AppCmd.AddCommand(broker.BokerRootCmd)
 }

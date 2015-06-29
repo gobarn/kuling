@@ -18,11 +18,11 @@ var (
 	maxNumMessages int
 )
 
-// LogStoreCmd root cmd for log store commands
-var LogStoreCmd = &cobra.Command{
-	Use:   "logstore",
-	Short: "Logstore requests.\n",
-	Long:  `Logstore requests\n`,
+// ServerCmd root cmd for log store commands
+var ServerCmd = &cobra.Command{
+	Use:   "server",
+	Short: "Server Commands\n",
+	Long:  `Server Commands\n`,
 	Run:   nil,
 }
 
@@ -34,7 +34,12 @@ func init() {
 	bootstrapServer()
 
 	// Add all commands
-	LogStoreCmd.AddCommand(FetchCmd, ServerCmd, CreateTopicCommand, PublishSingleCommand)
+	ServerCmd.AddCommand(
+		StandaloneServerCmd,
+		CreateTopicCommand,
+		PublishSingleCommand,
+		FetchCmd,
+	)
 }
 
 // Helper function that connects to the log server. Takes a function
@@ -45,7 +50,7 @@ func withClient(clientCommand func(client kuling.CommandServerClient)) {
 	conn, err := grpc.Dial(rpcAddress)
 
 	if err != nil {
-		log.Fatalf("command: Failed to dial: %v\n", err)
+		log.Fatalf("client: Failed to dial server: %v\n", err)
 		return
 	}
 	defer conn.Close()

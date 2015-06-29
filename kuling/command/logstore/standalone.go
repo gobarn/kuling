@@ -20,10 +20,10 @@ var (
 )
 
 // Server Command will run a http server
-var ServerCmd = &cobra.Command{
-	Use:   "server",
-	Short: "Execute operation on Kuling Server",
-	Long:  "Execute operation on Kuling Server",
+var StandaloneServerCmd = &cobra.Command{
+	Use:   "standalone",
+	Short: "Start standalone server",
+	Long:  "Start standalone server",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Create global config
 		c := &kuling.FSConfig{
@@ -79,7 +79,7 @@ var ServerCmd = &cobra.Command{
 
 func runServer(logStore kuling.LogStore) {
 	// Create a new log server and run it
-	logServer := kuling.NewLogServer(listenAddress, logStore)
+	logServer := kuling.NewStandaloneServer(listenAddress, logStore)
 	// Create a new RPC server and run it
 
 	// Run in a blocking call
@@ -94,7 +94,7 @@ func runRPCCommandServer(logStore kuling.LogStore) {
 // init sets up flags for the server commands
 func bootstrapServer() {
 	// host is available for all commands under server
-	ServerCmd.PersistentFlags().StringVarP(
+	StandaloneServerCmd.PersistentFlags().StringVarP(
 		&listenAddress,
 		"address",
 		"a",
@@ -102,7 +102,7 @@ func bootstrapServer() {
 		"Listen address for LogStore Server",
 	)
 
-	ServerCmd.PersistentFlags().StringVarP(
+	StandaloneServerCmd.PersistentFlags().StringVarP(
 		&commandAddress,
 		"command-address",
 		"c",
@@ -110,7 +110,7 @@ func bootstrapServer() {
 		"Listen address for Command RPC Server",
 	)
 
-	ServerCmd.PersistentFlags().StringVarP(
+	StandaloneServerCmd.PersistentFlags().StringVarP(
 		&dataDir,
 		"data-dir",
 		"d",
