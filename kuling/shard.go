@@ -35,7 +35,7 @@ type Shard interface {
 	Read(startSequenceID, maxMessages int64) ([]*Message, error)
 	// Copy data starting form sequenceID and reading
 	// max number of messages into the io writer
-	Copy(startSequenceID, maxMessages int64, w io.Writer) (int64, error)
+	Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
 	// Size returns the size in bytes of all the data in the shard
 	Size() int64
 }
@@ -233,12 +233,16 @@ func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 
 // Copy copies from the segment that owns the sequence ID and then takes
 // max number of messages forward
-func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
+func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	var copied int64
 	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment Segment) error {
+		// Call pre copy function with the number of bytes that we should read
+		preC(endOffset - startOffset)
 		// read and pars into messages
 		var err error
 		copied, err = segment.Copy(startOffset, endOffset, w)
+		// Call post copy function with the actual number of bytes copied
+		postC(copied)
 		return err
 	})
 

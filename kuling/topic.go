@@ -19,7 +19,7 @@ type Topic interface {
 	Read(shard string, startSequenceID, maxMessages int64) ([]*Message, error)
 	// Copy data from specific shard starting form sequenceID and reading
 	// max number of messages into the io writer
-	Copy(shard string, startSequenceID, maxMessages int64, w io.Writer) (int64, error)
+	Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
 }
 
 // FSTopic handles an entire topic with it's segments and indexex
@@ -53,29 +53,6 @@ func OpenFSTopicWithFixedShardingStrategy(dir string, numShards int, config *FSC
 	}
 
 	shards := make(map[string]Shard)
-	// // Loop over all directories and loadup the shards
-	// // Load segment files, important that we load them in correct order
-	// // such that the first segment file is loaded first.
-	// err = filepath.Walk(dir, func(shardDir string, f os.FileInfo, err error) error {
-	// 	// Shards are in directories, skip files
-	// 	if !f.IsDir() {
-	// 		return nil
-	// 	}
-	//
-	// 	// Load shard from directory
-	// 	shard, err := NewFSShard(f.Name())
-	// 	if err != nil {
-	// 		log.Printf("topic: Could not load shard %s\n", f.Name())
-	// 		return err
-	// 	}
-	//
-	// 	shards[f.Name()] = shard
-	//
-	// 	return nil
-	// })
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	// Create shard factory method for the sharding strategy
 	factory := func(name string) (Shard, error) {
@@ -116,9 +93,9 @@ func (t *FSTopic) Read(shard string, startSequenceID, maxMessages int64) ([]*Mes
 }
 
 // Copy from topic shard from start sequence id and max messages into io writer
-func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
+func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	if s, err := t.shardingStrategy.Get(shard); err == nil {
-		return s.Copy(startSequenceID, maxMessages, w)
+		return s.Copy(startSequenceID, maxMessages, w, preC, postC)
 	}
 
 	return 0, fmt.Errorf("topic: Unknown shard %s", shard)

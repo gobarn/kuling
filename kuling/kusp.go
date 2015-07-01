@@ -59,7 +59,7 @@ var PingCmd = ClientCommand{Name: "PING", ResponseType: STRING}
 var AppendCmd = ClientCommand{Name: "APPEND", ResponseType: STRING}
 
 //
-var FetchCmd = ClientCommand{Name: "FETCH", ResponseType: STRING}
+var FetchCmd = ClientCommand{Name: "FETCH", ResponseType: BULK}
 
 // ClientCommand contains the name and arguments that a client want to
 // send to a Kuling server
@@ -185,6 +185,21 @@ func (w *ClientCommandResponseWriter) WriteError(errType, msg string) error {
 	return w.Flush()
 }
 
+// WriteCopyStart writes the length information of the values that will
+// be sent
+func (w *ClientCommandResponseWriter) WriteCopyStart(totalBytesToWrite int64) error {
+	w.WriteByte(sizeByte)                                 // $
+	w.Write([]byte(fmt.Sprintf("%d", totalBytesToWrite))) // <num>
+	w.Write(crlfBytes)                                    // \r\n
+	return w.Flush()
+}
+
+// WriteCopyEnd writes the ending parts of the communication to the client
+func (w *ClientCommandResponseWriter) WriteCopyEnd(totalBytesToWrite int64) error {
+	w.Write(crlfBytes) // \r\n
+	return w.Flush()
+}
+
 // ClientCommandResponseReader reads command responses from server
 type ClientCommandResponseReader struct {
 	*bufio.Reader
@@ -216,27 +231,14 @@ func (ccr *ClientCommandResponseReader) ReadResponse(respType ClientCommandRespo
 	case STRING:
 		return ClientCommandResponse{Msg: string(line[1:])}, nil
 	case BULK:
-		// Read the response as byte array that was returned from the server
-		// First line indicates the length of the byte array to read.
-		// it is on the format:
-		// $<len>\r\n
-		// ...
-		// \r\n
-		typeInfo, _, err := ccr.ReadLine()
-		if err != nil {
-			// Could not read first line containing length of byte blob
-			return ClientCommandResponse{}, err
-		}
-
-		// Read length as a integer parsed from it's string value
-		bytesToRead, err := strconv.ParseInt(string(typeInfo[1:]), 0, 64)
+		bytesToRead, err := strconv.ParseInt(string(line[1:]), 0, 64)
 		if err != nil {
 			// Could not convert string integer to integer
 			return ClientCommandResponse{}, fmt.Errorf("client: Could not convert bulk number of bytes to read to int %s", err)
 		}
 
 		blob := make([]byte, bytesToRead)
-		bytesRead, err := ccr.Read(blob)
+		bytesRead, err := io.ReadAtLeast(ccr, blob, int(bytesToRead))
 		if err != nil {
 			// Error reading into byte array
 			return ClientCommandResponse{}, fmt.Errorf("client: Unknown read error %s", err)
@@ -244,8 +246,8 @@ func (ccr *ClientCommandResponseReader) ReadResponse(respType ClientCommandRespo
 
 		if int64(bytesRead) != bytesToRead {
 			// The server tells us the exact bytes to read, if we could not do so
-			// somethings is wrong
-			return ClientCommandResponse{}, fmt.Errorf("client: Server number of bytes to read %d differs from read bytes %d", bytesToRead, bytesRead)
+			// something is wrong
+			return ClientCommandResponse{}, fmt.Errorf("client: Server number of bytes to read %d differs from read bytes %d", bytesToRead, len(blob))
 		}
 
 		// Read the final new line, we don't really care about the result

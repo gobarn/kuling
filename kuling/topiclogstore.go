@@ -91,9 +91,9 @@ func (ls *FSTopicLogStore) Read(topic, shard string, startSequenceID, maxMessage
 }
 
 // Copy data from the topic, shard into the io writer
-func (ls *FSTopicLogStore) Copy(topic, shard string, startSequenceID, maxMessages int64, w io.Writer) (int64, error) {
+func (ls *FSTopicLogStore) Copy(topic, shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	if fsTopic, ok := ls.topics[topic]; ok {
-		return fsTopic.Copy(shard, startSequenceID, maxMessages, w)
+		return fsTopic.Copy(shard, startSequenceID, maxMessages, w, preC, postC)
 	}
 
 	return 0, fmt.Errorf("topic: Unknown topic %s", topic)

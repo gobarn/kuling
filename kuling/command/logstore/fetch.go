@@ -1,9 +1,9 @@
 package logstore
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 
@@ -45,17 +45,25 @@ var FetchCmd = &cobra.Command{
 
 		cmdResponseReader := kuling.NewClientCommandResponseReader(conn)
 
-		resp, err := cmdResponseReader.ReadResponse(kuling.PingCmd.ResponseType)
+		resp, err := cmdResponseReader.ReadResponse(kuling.FetchCmd.ResponseType)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			os.Exit(1)
 		} else if resp.Err != nil {
 			fmt.Println(resp.Err)
 			os.Exit(1)
 		}
 
-		log.Println(resp.Msg)
+		msgReader := kuling.NewMessageReader(bytes.NewReader(resp.Blob))
+		msgs, err := msgReader.ReadMessages()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-		os.Exit(0)
+		for _, m := range msgs {
+			fmt.Printf("Payload: %s\n", string(m.Payload))
+		}
 	},
 }
 

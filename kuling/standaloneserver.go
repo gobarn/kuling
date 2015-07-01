@@ -78,6 +78,7 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 		return err
 	}
 
+	// TODO remove
 	log.Println(cmd)
 
 	switch cmd.Name {
@@ -101,14 +102,13 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 			err = respWriter.WriteError("ARGUMENT", "max messages not a number")
 		}
 
-		_, err = s.logStore.Copy(cmd.Args[0], cmd.Args[1], startSequenceID, maxNumMessages, conn)
+		_, err = s.logStore.Copy(cmd.Args[0], cmd.Args[1], startSequenceID, maxNumMessages, conn,
+			func(totalBytesToRead int64) { respWriter.WriteCopyStart(totalBytesToRead) }, func(totalBytesRead int64) { respWriter.WriteCopyEnd(totalBytesRead) })
 
 		if err != nil {
 			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
 			return err
 		}
-
-		return respWriter.WriteString("OK")
 	}
 
 	err = respWriter.WriteError("UNKNOWN_COMMAND", cmd.Name)
