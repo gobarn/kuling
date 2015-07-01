@@ -1,8 +1,10 @@
 package kuling
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"strconv"
 )
 
 // LogServer struct
@@ -50,57 +52,65 @@ func (s *LogServer) ListenAndServe() {
 		// the request has been handled
 		go func() {
 			defer conn.Close()
-			s.handleRequest(conn)
+			err := s.handleKUSPRequest(conn)
+			if err != nil {
+				log.Printf("server: Unable to handle request: %s", err)
+			}
 		}()
 	}
 }
 
-// handleRequest by taking the incomming connection and reading the status
-// integer that tells us what the request from the client wants.
-func (s *LogServer) handleRequest(conn net.Conn) {
-	// Reade request header
-	requestHeaderReader := NewRequestHeaderReader(conn)
-	responseWriter := NewRequestResponseWriter(conn)
+func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
+	// Guard against panic during request handling
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Error while handling request")
+		}
+	}()
 
-	requestAction, err := requestHeaderReader.ReadRequestHeader()
+	cmdReader := NewClientCommandReader(conn)
+	respWriter := NewClientCommandResponseWriter(conn)
 
+	cmd, err := cmdReader.ReadCommand()
 	if err != nil {
-		// We could not read the action from the request. Return faulty request.
-		responseWriter.WriteHeader(ReqErr)
-		return
+		log.Printf("server: Unable to read client command: %s", err)
+		err = respWriter.WriteError("PROTOCOL", "Unable to read client command")
+		return err
 	}
 
-	if requestAction == ActionFetch {
-		// Read the fetch request from the io.Reader
-		fetchRequestReader := NewFetchRequestReader(conn)
+	log.Println(cmd)
 
-		fetchRequest, err := fetchRequestReader.ReadFetchRequest()
-		// Check that the status of the read was OK, if not write back the status
-		// to the client
+	switch cmd.Name {
+	case "PING":
+		return respWriter.WriteString("PONG")
+	case "APPEND":
+		err = s.logStore.Append(cmd.Args[0], cmd.Args[1], []byte(cmd.Args[2]), []byte(cmd.Args[3]))
 		if err != nil {
-			// Grab the status from the error and return it back to the client
-			responseWriter.WriteHeader(err.Status())
-			return
+			err = respWriter.WriteError("COMMAND", fmt.Sprintf("%s", err))
+			return err
 		}
 
-		// Write success response
-		responseWriter.WriteHeader(ReqSuccess)
-		// Copy log store chunk over to the connection
-		_, copyErr := s.logStore.Copy(
-			fetchRequest.Topic,
-			fetchRequest.Shard,
-			fetchRequest.StartSequenceID,
-			fetchRequest.MaxNumMessages,
-			responseWriter)
-
-		if copyErr != nil {
-			// Could not copy, now we have already written the success header... what to do..
-			log.Printf("server: Could not copy: %s\n", copyErr)
-			responseWriter.WriteHeader(ReqErr)
+		return respWriter.WriteString("OK")
+	case "FETCH":
+		startSequenceID, err := strconv.ParseInt(cmd.Args[2], 0, 64)
+		if err != nil {
+			err = respWriter.WriteError("ARGUMENT", "offset not a number")
 		}
-	} else {
-		// unknown action code
-		responseWriter.WriteHeader(StatusUnknownAction)
-		log.Println("server: Unknown action", requestAction)
+		maxNumMessages, err := strconv.ParseInt(cmd.Args[3], 0, 64)
+		if err != nil {
+			err = respWriter.WriteError("ARGUMENT", "max messages not a number")
+		}
+
+		_, err = s.logStore.Copy(cmd.Args[0], cmd.Args[1], startSequenceID, maxNumMessages, conn)
+
+		if err != nil {
+			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
+			return err
+		}
+
+		return respWriter.WriteString("OK")
 	}
+
+	err = respWriter.WriteError("UNKNOWN_COMMAND", cmd.Name)
+	return err
 }

@@ -16,6 +16,8 @@ var (
 	group          string
 	startID        int
 	maxNumMessages int
+	message        string
+	key            string
 )
 
 // ServerCmd root cmd for log store commands
@@ -30,15 +32,15 @@ var ServerCmd = &cobra.Command{
 func init() {
 	initAdminRPC()
 	bootstrapFetch()
-	bootstrapPublish()
 	bootstrapServer()
+	bootstrapAppend()
 
 	// Add all commands
 	ServerCmd.AddCommand(
 		StandaloneServerCmd,
 		CreateTopicCommand,
-		PublishSingleCommand,
 		FetchCmd,
+		AppendCmd,
 	)
 }
 

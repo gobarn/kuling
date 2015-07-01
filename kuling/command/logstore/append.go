@@ -11,13 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// FetchCmd will read from the server
-var FetchCmd = &cobra.Command{
-	Use:   "fetch",
-	Short: "Fetch messages",
-	Long:  "Performs a one time fetch of messages from the topic and fetches\nmessages starting from the start sequence id and reading a max number \nof messages. Note that you will not get back as many messages as max \nspecifies if that amount of messages does not exist. ",
+// AppendCmd will read from the server
+var AppendCmd = &cobra.Command{
+	Use:   "append",
+	Short: "Append Message",
+	Long:  "Append message to topic and shard",
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO move this out to some help function for commands calling the server
 		defer func() {
 			if r := recover(); r != nil {
 				if r == io.EOF {
@@ -37,7 +36,7 @@ var FetchCmd = &cobra.Command{
 		}
 
 		cmdWriter := kuling.NewClientCommandWriter(conn)
-		err = cmdWriter.WriteCommand(kuling.FetchCmd, topic, shard, fmt.Sprintf("%d", startID), fmt.Sprintf("%d", maxNumMessages))
+		err = cmdWriter.WriteCommand(kuling.AppendCmd, topic, shard, key, message)
 
 		if err != nil {
 			panic(err)
@@ -60,9 +59,9 @@ var FetchCmd = &cobra.Command{
 }
 
 // init sets up flags for the client commands
-func bootstrapFetch() {
+func bootstrapAppend() {
 	// host is available for all commands under server
-	FetchCmd.PersistentFlags().StringVarP(
+	AppendCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
 		"host",
 		"a",
@@ -70,7 +69,7 @@ func bootstrapFetch() {
 		"Host where server is running",
 	)
 
-	FetchCmd.PersistentFlags().StringVarP(
+	AppendCmd.PersistentFlags().StringVarP(
 		&topic,
 		"topic",
 		"t",
@@ -78,7 +77,7 @@ func bootstrapFetch() {
 		"Topic to stream messages from",
 	)
 
-	FetchCmd.PersistentFlags().StringVarP(
+	AppendCmd.PersistentFlags().StringVarP(
 		&shard,
 		"shard",
 		"s",
@@ -86,19 +85,19 @@ func bootstrapFetch() {
 		"Shard in the stream to read from",
 	)
 
-	FetchCmd.PersistentFlags().IntVarP(
-		&startID,
-		"offset-sequence-id",
-		"o",
-		0,
-		"Sequence ID to start reading messages from",
+	AppendCmd.PersistentFlags().StringVarP(
+		&key,
+		"key",
+		"k",
+		"",
+		"Key of message",
 	)
 
-	FetchCmd.PersistentFlags().IntVarP(
-		&maxNumMessages,
-		"max-num-messages",
+	AppendCmd.PersistentFlags().StringVarP(
+		&message,
+		"message",
 		"m",
-		1,
-		"Maximum messages to receive back",
+		"",
+		"Message to append",
 	)
 }
