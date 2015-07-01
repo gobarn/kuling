@@ -96,6 +96,7 @@ func (s *LogServer) handleRequest(conn net.Conn) {
 		if copyErr != nil {
 			// Could not copy, now we have already written the success header... what to do..
 			log.Printf("server: Could not copy: %s\n", copyErr)
+			responseWriter.WriteHeader(ReqErr)
 		}
 	} else {
 		// unknown action code

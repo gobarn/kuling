@@ -1,6 +1,7 @@
 package logstore
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,7 +20,7 @@ var (
 	dataDir string
 )
 
-// Server Command will run a http server
+// Server Command will run server on one machine
 var StandaloneServerCmd = &cobra.Command{
 	Use:   "standalone",
 	Short: "Start standalone server",
@@ -41,7 +42,7 @@ var StandaloneServerCmd = &cobra.Command{
 
 		// TEMP writes to get some data
 		for i := 0; i < 100000; i++ {
-			err := logStore.Append("emails", "0", []byte("john@doe.com"), []byte("Has all the stuff"))
+			err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
 
 			if err != nil {
 				panic(err)
