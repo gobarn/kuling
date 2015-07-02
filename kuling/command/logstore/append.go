@@ -3,8 +3,6 @@ package logstore
 import (
 	"fmt"
 	"io"
-	"log"
-	"net"
 	"os"
 
 	"github.com/fredrikbackstrom/kuling/kuling"
@@ -28,31 +26,19 @@ var AppendCmd = &cobra.Command{
 			}
 		}()
 
-		conn, err := net.Dial("tcp4", fetchAddress)
-		defer conn.Close()
+		client, err := kuling.Dial(fetchAddress)
+		defer client.Close()
 
 		if err != nil {
-			panic(err)
-		}
-
-		cmdWriter := kuling.NewClientCommandWriter(conn)
-		err = cmdWriter.WriteCommand(kuling.AppendCmd, topic, shard, key, message)
-
-		if err != nil {
-			panic(err)
-		}
-
-		cmdResponseReader := kuling.NewClientCommandResponseReader(conn)
-
-		resp, err := cmdResponseReader.ReadResponse(kuling.PingCmd.ResponseType)
-		if err != nil {
-			panic(err)
-		} else if resp.Err != nil {
-			fmt.Println(resp.Err)
+			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		log.Println(resp.Msg)
+		err = client.Append(topic, shard, key, message)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
 		os.Exit(0)
 	},

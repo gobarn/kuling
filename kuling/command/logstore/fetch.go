@@ -35,7 +35,7 @@ var FetchCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		msgs, err := msgReader.Fetch(topic, shard, startID, maxNumMessages, 100)
+		msgs, err := client.Fetch(topic, shard, int64(startID), int64(maxNumMessages), int64(100))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

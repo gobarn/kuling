@@ -1,7 +1,6 @@
 package logstore
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -42,11 +41,11 @@ var StandaloneServerCmd = &cobra.Command{
 
 		// TEMP writes to get some data
 		for i := 0; i < 100000; i++ {
-			err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
+			//err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
 
-			if err != nil {
-				panic(err)
-			}
+			// if err != nil {
+			// 	panic(err)
+			// }
 		}
 
 		// Run the server in a new go routine

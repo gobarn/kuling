@@ -34,6 +34,7 @@ func init() {
 	bootstrapFetch()
 	bootstrapServer()
 	bootstrapAppend()
+	bootstrapPing()
 
 	// Add all commands
 	ServerCmd.AddCommand(
@@ -41,6 +42,7 @@ func init() {
 		CreateTopicCommand,
 		FetchCmd,
 		AppendCmd,
+		PingCmd,
 	)
 }
 

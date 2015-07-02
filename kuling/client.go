@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net"
-
-	"github.com/fredrikbackstrom/kuling/kuling"
 )
 
 // Client client that can access and command a remote log store
@@ -28,30 +26,70 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+// Ping the server and expect a PONG back! You know...
+func (c *Client) Ping() (string, error) {
+	cmdWriter := NewClientCommandWriter(c.conn)
+	if err := cmdWriter.WriteCommand(PingCmd); err != nil {
+		return "", err
+	}
+
+	cmdResponseReader := NewClientCommandResponseReader(c.conn)
+
+	resp, err := cmdResponseReader.ReadResponse(PingCmd.ResponseType)
+	if err != nil {
+		return "", err
+	} else if resp.Err != nil {
+		return "", resp.Err
+	}
+
+	return resp.Msg, err
+}
+
+// Append keyed message into partition of the topic
+func (c *Client) Append(topic, partition string, key, message string) error {
+	cmdWriter := NewClientCommandWriter(c.conn)
+	err := cmdWriter.WriteCommand(AppendCmd, topic, partition, key, message)
+
+	if err != nil {
+		panic(err)
+	}
+
+	cmdResponseReader := NewClientCommandResponseReader(c.conn)
+
+	resp, err := cmdResponseReader.ReadResponse(PingCmd.ResponseType)
+	if err != nil {
+		return err
+	} else if resp.Err != nil {
+		return resp.Err
+	}
+
+	return nil
+}
+
 // Fetch messages from the kuling server on the topic and partition starting
 // from specified start id and getting max number of messaages. Note that
 // the server have no obligation to return exactly the number of messages
 // specified, only that it will never be more.
 func (c *Client) Fetch(topic, partition string, startID, maxNumMessages, chunkSize int64) ([]*Message, error) {
-	cmdWriter := kuling.NewClientCommandWriter(c.conn)
-	if err = cmdWriter.WriteCommand(kuling.FetchCmd, topic, partition, fmt.Sprintf("%d", startID), fmt.Sprintf("%d", maxNumMessages)); err != nil {
-		return err, nil
+	cmdWriter := NewClientCommandWriter(c.conn)
+	if err := cmdWriter.WriteCommand(FetchCmd, topic, partition, fmt.Sprintf("%d", startID), fmt.Sprintf("%d", maxNumMessages)); err != nil {
+		return nil, err
 	}
 
-	cmdResponseReader := kuling.NewClientCommandResponseReader(c.conn)
+	cmdResponseReader := NewClientCommandResponseReader(c.conn)
 
-	resp, err := cmdResponseReader.ReadResponse(kuling.FetchCmd.ResponseType)
+	resp, err := cmdResponseReader.ReadResponse(FetchCmd.ResponseType)
 	if err != nil {
-		return err, nil
+		return nil, err
 	} else if resp.Err != nil {
-		return resp.Err, nil
+		return nil, resp.Err
 	}
 
-	msgReader := kuling.NewMessageReader(bytes.NewReader(resp.Blob))
+	msgReader := NewMessageReader(bytes.NewReader(resp.Blob))
 	msgs, err := msgReader.ReadMessages()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
-	return nil, msgs
+	return msgs, nil
 }
