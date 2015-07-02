@@ -23,6 +23,8 @@ type Topic interface {
 	Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
 	// Delete the Topic
 	Delete() error
+	// Close the topic
+	Close() error
 }
 
 // FSTopic handles an entire topic with it's segments and indexex
@@ -126,6 +128,15 @@ func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Wr
 	}
 
 	return 0, fmt.Errorf("topic: Unknown shard %s", shard)
+}
+
+// Close down the file system topic by closing all partitions
+func (t *FSTopic) Close() error {
+	for _, p := range t.shards {
+		p.Close()
+	}
+
+	return nil
 }
 
 // String from stringer interface

@@ -49,5 +49,5 @@ type LogStore interface {
 	// or times out.
 	Closed() <-chan struct{}
 	// Close down the log store. Calls Done channel when finished
-	Close()
+	Close() error
 }

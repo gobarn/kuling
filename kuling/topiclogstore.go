@@ -153,7 +153,13 @@ func (ls *FSTopicLogStore) Closed() <-chan struct{} {
 }
 
 // Close the file system topics down
-func (ls *FSTopicLogStore) Close() {
+func (ls *FSTopicLogStore) Close() error {
 	// Close the closed channel
+	for _, t := range ls.topics {
+		t.Close()
+	}
+
 	close(ls.closed)
+
+	return nil
 }

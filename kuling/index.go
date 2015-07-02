@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -20,22 +21,22 @@ const valueLen = 8
 const valueSizeLen = 8
 
 // Index is closed
-var ErrIndexClosed = errors.New("Index has been closed")
+var ErrIndexClosed = errors.New("index: Index has been closed")
 
 // The index write could not be made
-var ErrIndexWriteFailed = errors.New("Index write failed")
+var ErrIndexWriteFailed = errors.New("index: Index write failed")
 
 // ErrSequenceIDNotFound tells the user that the sequecne ID is to high or low
-var ErrSequenceIDNotFound = errors.New("Sequence ID not found")
+var ErrSequenceIDNotFound = errors.New("index: Sequence ID not found")
 
 // ErrIndexFileCouldNotBeOpened the index file could not be opened
-var ErrIndexFileCouldNotBeOpened = errors.New("Index file could not be opened")
+var ErrIndexFileCouldNotBeOpened = errors.New("index: Index file could not be opened")
 
 // ErrNegativeOffset offset cannot be negative
-var ErrNegativeOffset = errors.New("Negative offset")
+var ErrNegativeOffset = errors.New("index: Negative offset")
 
 // ErrPathNotSet the path was not set correctly
-var ErrPathNotSet = errors.New("Path not set")
+var ErrPathNotSet = errors.New("index: Path not set")
 
 // LogIndex struct that knows how a index for a log file is
 type LogIndex struct {
@@ -119,12 +120,17 @@ func (idx *LogIndex) Close() {
 	idx.readWaitGroup.Wait()
 }
 
-// Next writes the offset value to the next sequence ID key
-func (idx *LogIndex) Next(offsetValue, messageSize int64) (int64, error) {
+// Next writes the offset value to the next sequence ID and the segment where
+// that sequence ID belongs
+func (idx *LogIndex) Next(segmentNumber, offsetValue int64) (int64, error) {
 	if offsetValue < 0 {
 		return 0, ErrNegativeOffset
 	}
-	// Write lock the index and defer the unlock
+	if segmentNumber < 0 {
+		return 0, fmt.Errorf("index: Segment number negative")
+	}
+
+	// Writelock the index and defer the unlock
 	idx.lock.Lock()
 	defer idx.lock.Unlock()
 	if !idx.running {
@@ -140,22 +146,23 @@ func (idx *LogIndex) Next(offsetValue, messageSize int64) (int64, error) {
 	currentSequenceID := idx.nextSequenceID
 	err := binary.Write(buf, binary.BigEndian, &currentSequenceID)
 	if err != nil {
-		// Could not write sequence ID
 		panic(err)
 	}
 
 	err = binary.Write(buf, binary.BigEndian, &offsetValue)
 	if err != nil {
-		// Could not write offsetValue but we wrote the sequence ID
 		panic(err)
 	}
 
-	// Write message size
-	err = binary.Write(buf, binary.BigEndian, &messageSize)
+	err = binary.Write(buf, binary.BigEndian, &segmentNumber)
 	if err != nil {
-		// Could not write message size
 		panic(err)
 	}
+
+	// err = binary.Write(buf, binary.BigEndian, &messageSize)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// Flush the row to disk
 	err = buf.Flush()
@@ -174,13 +181,13 @@ func (idx *LogIndex) Next(offsetValue, messageSize int64) (int64, error) {
 	return currentSequenceID, nil
 }
 
-// GetOffset finds the offset value stored under the sequenceID key. If
+// SegmentAndOffset finds the offset value stored under the sequenceID key. If
 // The sequence ID cannot be found then ErrSequenceIDNotFound is returned.
 // If any trouble during file operations ErrIndexFileCouldNotBeOpened is
 // returned
-// On success the offset and message size is returned, on failure an
+// On success the segment number and the offset is returned, on failure an
 // error is returned
-func (idx *LogIndex) GetOffset(sequenceID int64) (int64, int64, error) {
+func (idx *LogIndex) SegmentAndOffset(sequenceID int64) (int64, int64, error) {
 	if !idx.running {
 		return 0, 0, ErrIndexClosed
 	}
@@ -230,8 +237,8 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, int64, error) {
 		panic(err)
 	}
 
-	var messageSize int64
-	err = binary.Read(readFile, binary.BigEndian, &messageSize) // Reads 8
+	var segmentNumber int64
+	err = binary.Read(readFile, binary.BigEndian, &segmentNumber) // Reads 8
 	if err == io.EOF {
 		// Searched to the end of the file and could not find the sequence
 		return 0, 0, ErrSequenceIDNotFound
@@ -239,5 +246,5 @@ func (idx *LogIndex) GetOffset(sequenceID int64) (int64, int64, error) {
 		panic(err)
 	}
 
-	return value, messageSize, nil
+	return segmentNumber, value, nil
 }

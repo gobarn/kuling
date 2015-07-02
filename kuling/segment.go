@@ -29,6 +29,8 @@ type Segment interface {
 	Copy(offset, endOffset int64, w io.Writer) (int64, error)
 	// Size returns the size in bytes of the segment
 	Size() int64
+	// Close the segment
+	Close() error
 }
 
 var (
@@ -160,6 +162,11 @@ func (ss *FSSegment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 // Size returns the size in bytes of the segment
 func (ss *FSSegment) Size() int64 {
 	return ss.size
+}
+
+// Close segment
+func (ss *FSSegment) Close() error {
+	return ss.whandle.Close()
 }
 
 // String from stringer interface

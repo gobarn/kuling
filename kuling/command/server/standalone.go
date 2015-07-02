@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -36,23 +35,23 @@ var StandaloneServerCmd = &cobra.Command{
 		logStore, err := kuling.OpenFSTopicLogStore(dataDir, c)
 
 		if err != nil {
-			fmt.Printf("Could not start server: %s\n", err)
+			log.Printf("standalone: Could not start server: %s\n", err)
 			os.Exit(1)
 		}
 
 		// CREATE TEMP TOPIC
-		//if err := logStore.CreateTopic("emails", 10); err != nil {
-		//			log.Fatal(err)
-		//	}
+		if _, err := logStore.CreateTopic("emails", 10); err != nil {
+			// log.Fatal(err)
+		}
 
 		// TEMP writes to get some data
-		//for i := 0; i < 100000; i++ {
-		//err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
-
-		// if err != nil {
-		// 	panic(err)
+		// for i := 0; i < 500000; i++ {
+		// 	err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
+		//
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
 		// }
-		//}
 
 		// Run the server in a new go routine
 		go runServer(logStore)
@@ -65,14 +64,14 @@ var StandaloneServerCmd = &cobra.Command{
 			case sig := <-osSignals:
 				if sig == os.Interrupt {
 					// Received Interrupt Signal. Stop the scheduler, workers and then shut down.
-					log.Println("command: Received exit signal, stopping server...")
+					log.Println("standalone: Received exit signal, stopping server...")
 					// Stop log store
 					logStore.Close()
 					// Wait for the log store to close down
 					for {
 						select {
 						case <-logStore.Closed():
-							log.Println("command: Closed")
+							log.Println("standalone: Closed")
 							os.Exit(0)
 						}
 					}

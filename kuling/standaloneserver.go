@@ -64,7 +64,7 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 	// Guard against panic during request handling
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Error while handling request")
+			fmt.Println("Error while handling request", r)
 		}
 	}()
 

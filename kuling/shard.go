@@ -38,6 +38,8 @@ type Shard interface {
 	Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
 	// Size returns the size in bytes of all the data in the shard
 	Size() int64
+	// Close down the partition
+	Close() error
 }
 
 // FSShard file system shards. Keeps a zero based index for the shard that
@@ -159,7 +161,7 @@ func (s *FSShard) Append(key, payload []byte) error {
 	}
 
 	// Get next sequenceID from index
-	sequenceID, err := s.index.Next(s.activeSegment.Size(), msgSize)
+	sequenceID, err := s.index.Next(int64(len(s.segments)-1), s.activeSegment.Size())
 	if err != nil {
 		return err
 	}
@@ -189,7 +191,7 @@ func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(sta
 	}
 
 	// Get offset from index
-	startOffset, _, err := s.index.GetOffset(startSequenceID)
+	segmentNumber, startOffset, err := s.index.SegmentAndOffset(startSequenceID)
 	if err == ErrSequenceIDNotFound {
 		// Could not find start offset
 		return ErrShardStartSequenceIDNotFound
@@ -197,12 +199,13 @@ func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(sta
 		return err
 	}
 
-	segment, err := s.getSegmentForOffset(startOffset)
+	segment := s.segments[segmentNumber]
+
 	if err != nil {
 		return errors.New("shard: Could not find segment for start sequence ID, have the file been removed?")
 	}
 
-	endOffset, _, err := s.index.GetOffset(startSequenceID + maxMessages)
+	_, endOffset, err := s.index.SegmentAndOffset(startSequenceID + maxMessages)
 	if err == ErrSequenceIDNotFound {
 		// Fewer messages than max messages in shard, take the whole shard
 		err = nil
@@ -248,27 +251,6 @@ func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC Pre
 	return copied, err
 }
 
-func (s *FSShard) getSegmentForOffset(offset int64) (Segment, error) {
-	var segment Segment
-
-	// Get segment for offset
-	maxOffset := int64(0)
-	for _, possibleSegment := range s.segments {
-		maxOffset += possibleSegment.Size()
-		if maxOffset > offset {
-			// We found the segment that contain the start segment offset
-			segment = possibleSegment
-			break
-		}
-	}
-
-	if segment == nil {
-		return nil, fmt.Errorf("shard: No segment file found for offset %d", offset)
-	}
-
-	return segment, nil
-}
-
 // Size returns the total size of all segments
 func (s *FSShard) Size() int64 {
 	var total int64
@@ -277,6 +259,15 @@ func (s *FSShard) Size() int64 {
 	}
 
 	return total
+}
+
+// Close down the partition
+func (s *FSShard) Close() error {
+	for _, p := range s.segments {
+		p.Close()
+	}
+
+	return nil
 }
 
 // String from stringer interface
