@@ -1,4 +1,4 @@
-package logstore
+package server
 
 import (
 	"fmt"

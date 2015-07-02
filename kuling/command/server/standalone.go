@@ -1,4 +1,4 @@
-package logstore
+package server
 
 import (
 	"log"
@@ -50,7 +50,6 @@ var StandaloneServerCmd = &cobra.Command{
 
 		// Run the server in a new go routine
 		go runServer(logStore)
-		go runRPCCommandServer(logStore)
 
 		// All Traits have been successfully started, now block on the caller
 		osSignals := make(chan os.Signal, 1)
@@ -84,11 +83,6 @@ func runServer(logStore kuling.LogStore) {
 
 	// Run in a blocking call
 	logServer.ListenAndServe()
-}
-
-func runRPCCommandServer(logStore kuling.LogStore) {
-	rpcServer := kuling.NewRPCCommandServer(logStore)
-	rpcServer.ListenAndServe(commandAddress)
 }
 
 // init sets up flags for the server commands

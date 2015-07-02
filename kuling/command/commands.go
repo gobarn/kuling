@@ -3,8 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/fredrikbackstrom/kuling/kuling/command/broker"
-	"github.com/fredrikbackstrom/kuling/kuling/command/logstore"
+	"github.com/fredrikbackstrom/kuling/kuling/command/server"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +31,5 @@ var VersionCmd = &cobra.Command{
 func init() {
 	// Append all child commands to the application command
 	AppCmd.AddCommand(VersionCmd)
-	AppCmd.AddCommand(logstore.ServerCmd)
-	AppCmd.AddCommand(broker.BokerRootCmd)
+	AppCmd.AddCommand(server.ServerCmd)
 }
