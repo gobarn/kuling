@@ -62,7 +62,7 @@ var FetchCmd = &cobra.Command{
 		}
 
 		for _, m := range msgs {
-			fmt.Printf("Payload: %s\n", string(m.Payload))
+			fmt.Printf("key: %s payload: %s\n", string(m.Key), string(m.Payload))
 		}
 	},
 }
