@@ -248,21 +248,22 @@ func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC Pre
 	return copied, err
 }
 
-func (s *FSShard) getSegmentForOffset(startOffset int64) (Segment, error) {
+func (s *FSShard) getSegmentForOffset(offset int64) (Segment, error) {
 	var segment Segment
 
 	// Get segment for offset
 	maxOffset := int64(0)
 	for _, possibleSegment := range s.segments {
 		maxOffset += possibleSegment.Size()
-		if maxOffset > startOffset {
+		if maxOffset > offset {
 			// We found the segment that contain the start segment offset
 			segment = possibleSegment
+			break
 		}
 	}
 
 	if segment == nil {
-		return nil, fmt.Errorf("shard: No segment file found for offset %d", startOffset)
+		return nil, fmt.Errorf("shard: No segment file found for offset %d", offset)
 	}
 
 	return segment, nil
