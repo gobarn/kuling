@@ -36,7 +36,7 @@ type PostCopy func(totalBytesCopied int64)
 type LogStore interface {
 	// CreateTopic creates a new topic. If the topic exists it returns
 	// a topic already exists error
-	CreateTopic(topic string, numShards int) error
+	CreateTopic(topic string, numShards int) (Topic, error)
 	// Append inserts the paylooad into the topic and partition
 	Append(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as

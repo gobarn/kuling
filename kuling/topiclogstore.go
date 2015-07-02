@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 // FSConfig contains configurations that are used during runtime and
@@ -21,61 +22,108 @@ type FSConfig struct {
 
 // FSTopicLogStore is a file system based log store.
 type FSTopicLogStore struct {
+	// Global configuration for all topics
+	config *FSConfig
 	// Root directory of log store
 	dir string
 	// Map of topic names to file system topics structs
-	topics map[string]*FSTopic
+	topics map[string]Topic
 	// Channel that will broadcast when the log store has closed down
 	closed chan struct{}
-	// Global configuration for all topics
-	config *FSConfig
 }
 
 // OpenFSTopicLogStore opens or create ile system topic log store
-func OpenFSTopicLogStore(dir string, c *FSConfig) *FSTopicLogStore {
+func OpenFSTopicLogStore(dir string, c *FSConfig) (LogStore, error) {
 	if c.PermDirectories < 0700 {
-		panic("logstore: Directories must have execute right for running user")
+		return nil, fmt.Errorf("logstore: Directories must have execute right for running user")
 	}
 	if c.PermData < 0600 {
-		panic("logstore: Files must have read and write permissions for running user")
+		return nil, fmt.Errorf("logstore: Files must have read and write permissions for running user")
 	}
 
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
-		log.Fatalln("logstore: Path is not a directory")
+		log.Println("logstore: Path is not a directory")
+		return nil, err
 	}
 
-	return &FSTopicLogStore{
-		dir,
-		make(map[string]*FSTopic),
-		make(chan (struct{})),
+	logStore := &FSTopicLogStore{
 		c,
+		dir,
+		make(map[string]Topic),
+		make(chan (struct{})),
 	}
+
+	// Load all existing topics from the file system
+	// This might need improvement as it just loads all
+	// directories and treats them as topic
+	// Load segment files, important that we load them in correct order
+	// such that the first segment file is loaded first.
+	err = filepath.Walk(dir, func(topicDir string, f os.FileInfo, err error) error {
+		if !f.IsDir() {
+			// We only want dirs!
+			return nil
+		}
+
+		topic, err := OpenFSTopic(path.Join(dir, f.Name()), c)
+		if err != nil {
+			return err
+		}
+
+		logStore.topics[f.Name()] = topic
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("logstore: Could not load topic: %s\n", err)
+		return nil, err
+	}
+
+	return logStore, nil
 }
 
 // CreateTopic a new topic with given name. Name must not contain
 // spaces or non file system ok chars
-func (ls *FSTopicLogStore) CreateTopic(topic string, numShards int) error {
-	topicDir := path.Join(ls.dir, topic)
-
-	fsTopic, err := OpenFSTopicWithFixedShardingStrategy(topicDir, numShards, ls.config)
+func (ls *FSTopicLogStore) CreateTopic(topicName string, numPartitions int) (Topic, error) {
+	topic, err := OpenFSTopic(path.Join(ls.dir, topicName), ls.config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Save the file system topic to map of topics
-	ls.topics[topic] = fsTopic
-	return nil
+	for i := 0; i < numPartitions; i++ {
+		err := topic.CreatePartition(fmt.Sprintf("%d", i))
+		if err != nil {
+			// Try to delete the created topic as it could not be correctly
+			// created
+			err := ls.DeleteTopic(topicName)
+			if err != nil {
+				// Could not delete it, notify client that the topic has been created but
+				// could not be removed after issue. The topic is not added to the list
+				// of available topics so it will not be reachable until restart but
+				// then it may not work
+				return nil, fmt.Errorf("logstore: Unable to create topic %s, cleanup failed", topicName)
+			}
+			return nil, fmt.Errorf("logstore: Unable to create topic %s, cleanup success", topicName)
+		}
+	}
+
+	ls.topics[topicName] = topic
+	return topic, nil
+}
+
+// DeleteTopic deletes topic with given name
+func (ls *FSTopicLogStore) DeleteTopic(topicName string) error {
+	if t, ok := ls.topics[topicName]; ok {
+		return t.Delete()
+	}
+
+	return fmt.Errorf("topic: Unknown topic %s", topicName)
 }
 
 // Append data to log store in given topic and shard
 func (ls *FSTopicLogStore) Append(topic, shard string, key, payload []byte) error {
 	if fsTopic, ok := ls.topics[topic]; ok {
-		if err := fsTopic.Append(shard, key, payload); err != nil {
-			return err
-		}
-
-		return nil
+		return fsTopic.Append(shard, key, payload)
 	}
 
 	return fmt.Errorf("topic: Unknown topic %s", topic)
@@ -107,8 +155,6 @@ func (ls *FSTopicLogStore) Closed() <-chan struct{} {
 
 // Close the file system topics down
 func (ls *FSTopicLogStore) Close() {
-	// Close all File system topic stores
-
 	// Close the closed channel
 	close(ls.closed)
 }

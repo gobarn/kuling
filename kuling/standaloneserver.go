@@ -115,7 +115,7 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 			err = respWriter.WriteError("ARGUMENT", "num partitions not a number")
 		}
 
-		err = s.logStore.CreateTopic(cmd.Args[0], int(numPartitions))
+		_, err = s.logStore.CreateTopic(cmd.Args[0], int(numPartitions))
 
 		if err != nil {
 			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))

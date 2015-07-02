@@ -64,7 +64,6 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
 		log.Printf("shard: Creating shard directory %s", dir)
-		// The directory does not exist, lets create it
 		err := os.Mkdir(dir, permDirectories)
 
 		if err != nil {
@@ -85,12 +84,11 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 		if f.IsDir() {
 			return nil
 		}
-		// If not segment file then skip it
+
 		if !strings.HasSuffix(f.Name(), ".seg") {
 			return nil
 		}
 
-		// Found segment file
 		segment, err := OpenFSSegment(path.Join(dir, f.Name()), permData)
 		if err != nil {
 			return err
@@ -172,8 +170,10 @@ func (s *FSShard) Append(key, payload []byte) error {
 	// Append the message to the active segment
 	err = s.activeSegment.Append(m)
 	if err != nil {
-		// TODO revert sequence id somehow...
-		return err
+		// TODO: Not an ideal situation where we could not append the message to the
+		// active segment and have already commited the next sequenceID meaning that
+		// the id will not be used and may be confusing or cause errors down the line
+		return fmt.Errorf("shard: WARN: Could not append message to active segment. Index id %d will be empty: %s", sequenceID, err)
 	}
 
 	return nil
