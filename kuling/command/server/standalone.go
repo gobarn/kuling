@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -32,7 +33,12 @@ var StandaloneServerCmd = &cobra.Command{
 			1024 * 1000 * 10, // 10MB
 		}
 		// Open the log store
-		logStore := kuling.OpenFSTopicLogStore(dataDir, c)
+		logStore, err := kuling.OpenFSTopicLogStore(dataDir, c)
+
+		if err != nil {
+			fmt.Printf("Could not start server: %s\n", err)
+			os.Exit(1)
+		}
 
 		// CREATE TEMP TOPIC
 		//if err := logStore.CreateTopic("emails", 10); err != nil {

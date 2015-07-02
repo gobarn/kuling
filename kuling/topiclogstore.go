@@ -3,10 +3,10 @@ package kuling
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 )
 
 // FSConfig contains configurations that are used during runtime and
@@ -59,24 +59,23 @@ func OpenFSTopicLogStore(dir string, c *FSConfig) (LogStore, error) {
 	// directories and treats them as topic
 	// Load segment files, important that we load them in correct order
 	// such that the first segment file is loaded first.
-	err = filepath.Walk(dir, func(topicDir string, f os.FileInfo, err error) error {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("logstore: Could not open logstore dir %s: %s", dir, err)
+	}
+
+	for _, f := range files {
 		if !f.IsDir() {
 			// We only want dirs!
-			return nil
+			continue
 		}
 
 		topic, err := OpenFSTopic(path.Join(dir, f.Name()), c)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("logstore: Could not load topic: %s\n", err)
 		}
 
 		logStore.topics[f.Name()] = topic
-
-		return nil
-	})
-	if err != nil {
-		log.Printf("logstore: Could not load topic: %s\n", err)
-		return nil, err
 	}
 
 	return logStore, nil

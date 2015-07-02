@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -80,27 +80,26 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 
 	// Load segment files, important that we load them in correct order
 	// such that the first segment file is loaded first.
-	err = filepath.Walk(dir, func(topicDir string, f os.FileInfo, err error) error {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("shard: Could not open shard dir %s: %s", dir, err)
+	}
+
+	for _, f := range files {
 		if f.IsDir() {
-			return nil
+			continue
 		}
 
 		if !strings.HasSuffix(f.Name(), ".seg") {
-			return nil
+			continue
 		}
 
 		segment, err := OpenFSSegment(path.Join(dir, f.Name()), permData)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("shard: Could not load segment file(s): %s\n", err)
 		}
 
 		segments = append(segments, segment)
-
-		return nil
-	})
-	if err != nil {
-		log.Printf("shard: Could not load segment file(s): %s\n", err)
-		return nil, err
 	}
 
 	if len(segments) == 0 {

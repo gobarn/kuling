@@ -3,10 +3,10 @@ package kuling
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 )
 
 // Topic store data in a topic
@@ -61,24 +61,23 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 	}
 
 	// Load all existing partitions
-	err = filepath.Walk(dir, func(topicDir string, f os.FileInfo, err error) error {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("topic: Could not open topic dir %s: %s", dir, err)
+	}
+
+	for _, f := range files {
 		if !f.IsDir() {
-			// Shards are directories, continue
-			return nil
+			// We only want dirs!
+			continue
 		}
 
 		partition, err := OpenFSShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("topic: Could not load shard: %s\n", err)
 		}
 
 		topic.shards[f.Name()] = partition
-
-		return nil
-	})
-	if err != nil {
-		log.Printf("topic: Could not load shard: %s\n", err)
-		return nil, err
 	}
 
 	return topic, nil
