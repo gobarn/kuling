@@ -2,32 +2,74 @@ package logstore
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"os"
 
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 )
 
-// Client Command will read from the server
-var CreateTopicCommand = &cobra.Command{
+// CreateTopicCmd will call the server and ask it to create a topic with
+// given number of partitions
+var CreateTopicCmd = &cobra.Command{
 	Use:   "create-topic",
-	Short: "Create a new topic",
-	Long:  "Create a new topic",
+	Short: "Create Topic",
+	Long:  "Create Topic",
 	Run: func(cmd *cobra.Command, args []string) {
-		withClient(func(c kuling.CommandServerClient) {
-			// Execute create topic command against the kuling server
-			_, err := c.CreateTopic(context.Background(), &kuling.CreateTopicRequest{topic})
-
-			if err != nil {
-				fmt.Errorf("server: Could not create topic: %v\n", err)
+		// TODO move this out to some help function for commands calling the server
+		defer func() {
+			if r := recover(); r != nil {
+				if r == io.EOF {
+					fmt.Println("Connection closed before reading response")
+					os.Exit(1)
+				} else {
+					fmt.Printf("Recovered from panic %v\n", r)
+				}
 			}
+		}()
 
-			fmt.Println("server: OK")
-		})
+		client, err := kuling.Dial(fetchAddress)
+		defer client.Close()
+		if err != nil {
+			log.Println(err)
+			os.Exit(0)
+		}
+
+		msg, err := client.CreateTopic(topic, int64(numPartitions))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		fmt.Println(msg)
 	},
 }
 
 // init sets up flags for the client commands
-func initAdminRPC() {
-	CreateTopicCommand.PersistentFlags().StringVarP(&rpcAddress, "rpc-address", "a", kuling.DefaultCommandAddress, "Host where broker is running")
+func bootstrapCreateTopic() {
+	// host is available for all commands under server
+	CreateTopicCmd.PersistentFlags().StringVarP(
+		&fetchAddress,
+		"host",
+		"a",
+		kuling.DefaultFetchAddress,
+		"Host where server is running",
+	)
+
+	CreateTopicCmd.PersistentFlags().StringVarP(
+		&topic,
+		"topic",
+		"t",
+		"",
+		"Name of topic to create",
+	)
+
+	CreateTopicCmd.PersistentFlags().IntVarP(
+		&numPartitions,
+		"num-partitions",
+		"n",
+		1,
+		"The number of partitions the topic shall have",
+	)
 }

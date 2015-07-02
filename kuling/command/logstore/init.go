@@ -18,6 +18,7 @@ var (
 	maxNumMessages int
 	message        string
 	key            string
+	numPartitions  int
 )
 
 // ServerCmd root cmd for log store commands
@@ -30,19 +31,19 @@ var ServerCmd = &cobra.Command{
 
 // Broker command/broker init function that sets up
 func init() {
-	initAdminRPC()
 	bootstrapFetch()
 	bootstrapServer()
 	bootstrapAppend()
 	bootstrapPing()
+	bootstrapCreateTopic()
 
 	// Add all commands
 	ServerCmd.AddCommand(
 		StandaloneServerCmd,
-		CreateTopicCommand,
 		FetchCmd,
 		AppendCmd,
 		PingCmd,
+		CreateTopicCmd,
 	)
 }
 

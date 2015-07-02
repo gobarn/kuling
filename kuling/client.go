@@ -45,25 +45,47 @@ func (c *Client) Ping() (string, error) {
 	return resp.Msg, err
 }
 
+// CreateTopic calls the server and asks it to create topic with given number
+// of partitions
+func (c *Client) CreateTopic(topic string, numPartitions int64) (string, error) {
+	cmdWriter := NewClientCommandWriter(c.conn)
+	err := cmdWriter.WriteCommand(CreateTopicCmd, topic, fmt.Sprintf("%d", numPartitions))
+
+	if err != nil {
+		return "", err
+	}
+
+	cmdResponseReader := NewClientCommandResponseReader(c.conn)
+
+	resp, err := cmdResponseReader.ReadResponse(CreateTopicCmd.ResponseType)
+	if err != nil {
+		return "", err
+	} else if resp.Err != nil {
+		return "", resp.Err
+	}
+
+	return resp.Msg, nil
+}
+
 // Append keyed message into partition of the topic
-func (c *Client) Append(topic, partition string, key, message string) error {
+func (c *Client) Append(topic, partition string, key, message string) (string, error) {
 	cmdWriter := NewClientCommandWriter(c.conn)
 	err := cmdWriter.WriteCommand(AppendCmd, topic, partition, key, message)
 
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	cmdResponseReader := NewClientCommandResponseReader(c.conn)
 
 	resp, err := cmdResponseReader.ReadResponse(PingCmd.ResponseType)
 	if err != nil {
-		return err
+		return "", err
 	} else if resp.Err != nil {
-		return resp.Err
+		return "", resp.Err
 	}
 
-	return nil
+	return resp.Msg, nil
 }
 
 // Fetch messages from the kuling server on the topic and partition starting

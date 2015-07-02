@@ -35,18 +35,18 @@ var StandaloneServerCmd = &cobra.Command{
 		logStore := kuling.OpenFSTopicLogStore(dataDir, c)
 
 		// CREATE TEMP TOPIC
-		if err := logStore.CreateTopic("emails", 10); err != nil {
-			log.Fatal(err)
-		}
+		//if err := logStore.CreateTopic("emails", 10); err != nil {
+		//			log.Fatal(err)
+		//	}
 
 		// TEMP writes to get some data
-		for i := 0; i < 100000; i++ {
-			//err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
+		//for i := 0; i < 100000; i++ {
+		//err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
 
-			// if err != nil {
-			// 	panic(err)
-			// }
-		}
+		// if err != nil {
+		// 	panic(err)
+		// }
+		//}
 
 		// Run the server in a new go routine
 		go runServer(logStore)

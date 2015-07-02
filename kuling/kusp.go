@@ -58,8 +58,11 @@ var PingCmd = ClientCommand{Name: "PING", ResponseType: STRING}
 // AppendCmd sends a append cmd to the server with topic, shard, key and message
 var AppendCmd = ClientCommand{Name: "APPEND", ResponseType: STRING}
 
-//
+// Fetch a range or messages from a topic
 var FetchCmd = ClientCommand{Name: "FETCH", ResponseType: BULK}
+
+// CreateTopicCmd
+var CreateTopicCmd = ClientCommand{Name: "CREATE_TOPIC", ResponseType: STRING}
 
 // ClientCommand contains the name and arguments that a client want to
 // send to a Kuling server

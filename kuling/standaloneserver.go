@@ -109,6 +109,20 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
 			return err
 		}
+	case "CREATE_TOPIC":
+		numPartitions, err := strconv.ParseInt(cmd.Args[1], 0, 64)
+		if err != nil {
+			err = respWriter.WriteError("ARGUMENT", "num partitions not a number")
+		}
+
+		err = s.logStore.CreateTopic(cmd.Args[0], int(numPartitions))
+
+		if err != nil {
+			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
+			return err
+		}
+
+		return respWriter.WriteString("OK")
 	}
 
 	err = respWriter.WriteError("UNKNOWN_COMMAND", cmd.Name)

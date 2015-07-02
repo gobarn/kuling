@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// FetchCmd will read from the server
+// PingCmd will read from the server
 var PingCmd = &cobra.Command{
 	Use:   "ping",
 	Short: "Ping",

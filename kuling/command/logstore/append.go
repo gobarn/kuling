@@ -34,12 +34,13 @@ var AppendCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err = client.Append(topic, shard, key, message)
+		msg, err := client.Append(topic, shard, key, message)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
+		fmt.Println(msg)
 		os.Exit(0)
 	},
 }
