@@ -85,7 +85,7 @@ func (c *Client) Append(topic, shard string, key, message []byte) (string, error
 // from specified start id and getting max number of messaages. Note that
 // the server have no obligation to return exactly the number of messages
 // specified, only that it will never be more.
-func (c *Client) Fetch(topic, shard string, startID, maxNumMessages, chunkSize int64) ([]*Message, error) {
+func (c *Client) Fetch(topic, shard string, startID, maxNumMessages int64) ([]*Message, error) {
 	if err := c.WriteCommand("FETCH", topic, shard, startID, maxNumMessages); err != nil {
 		return nil, err
 	}
