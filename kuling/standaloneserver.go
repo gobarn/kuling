@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"reflect"
 )
 
 // LogServer struct
@@ -64,11 +63,19 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 	cmdReader := NewReader(conn)
 	respWriter := NewResponseWriter(conn)
 
+	var cmdArray []interface{}
+	var cmd string
+
 	// Guard against panic during request handling
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("Error while handling request", r, reflect.TypeOf(r))
-			respWriter.WriteError("UNKNOW", "Client sent bad command or server had critical issue")
+			if cmd != "" {
+				log.Println("Error while handling command", cmd, r)
+				respWriter.WriteError("COMMAND", fmt.Sprintf("Client sent bad command (%s) or server had critical issue", cmd))
+			} else {
+				log.Println("Error while handling command", r)
+				respWriter.WriteError("COMMAND", fmt.Sprint("Client sent bad request or server had critical issue"))
+			}
 		}
 	}()
 
@@ -80,10 +87,8 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 	}
 
 	// The command is always an array
-	cmdArray := resp.([]interface{})
-	cmd := string(cmdArray[0].([]byte))
-	// TODO remove
-	log.Println(cmd)
+	cmdArray = resp.([]interface{})
+	cmd = string(cmdArray[0].([]byte))
 
 	switch cmd {
 	case "PING":
@@ -125,7 +130,7 @@ func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
 		)
 
 		if err != nil {
-			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
+			err = respWriter.WriteError("ERR", fmt.Sprintf("%s : %s", cmd, err))
 			return err
 		}
 
