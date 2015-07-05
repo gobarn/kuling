@@ -85,14 +85,14 @@ func OpenFSTopicLogStore(dir string, c *FSConfig) (LogStore, error) {
 
 // CreateTopic a new topic with given name. Name must not contain
 // spaces or non file system ok chars
-func (ls *FSTopicLogStore) CreateTopic(topicName string, numPartitions int) (Topic, error) {
+func (ls *FSTopicLogStore) CreateTopic(topicName string, numShards int) (Topic, error) {
 	topic, err := OpenFSTopic(path.Join(ls.dir, topicName), ls.config)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := 0; i < numPartitions; i++ {
-		err := topic.CreatePartition(fmt.Sprintf("%d", i))
+	for i := 0; i < numShards; i++ {
+		err := topic.CreateShard(fmt.Sprintf("%d", i))
 		if err != nil {
 			// Try to delete the created topic as it could not be correctly
 			// created

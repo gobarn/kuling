@@ -12,7 +12,7 @@ var (
 	maxNumMessages int
 	message        string
 	key            string
-	numPartitions  int
+	numShards  int
 )
 
 // ServerCmd root cmd for log store commands

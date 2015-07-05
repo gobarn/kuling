@@ -12,7 +12,11 @@ var (
 	table = crc32.MakeTable(crc32.IEEE)
 )
 
-// Message a
+// Message struct containing the fields that will be written to disk
+// The magic contains the version of the message
+// sequence ID is the sequence id in the topic it is written to. This
+// is needed when log compaction is carried out on a stream.
+// crc is calculated on the payload of the message
 type Message struct {
 	Magic         byte   // 1
 	SequenceID    int64  // 8

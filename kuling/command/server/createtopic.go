@@ -11,7 +11,7 @@ import (
 )
 
 // CreateTopicCmd will call the server and ask it to create a topic with
-// given number of partitions
+// given number of shards
 var CreateTopicCmd = &cobra.Command{
 	Use:   "create-topic",
 	Short: "Create Topic",
@@ -36,7 +36,7 @@ var CreateTopicCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		msg, err := client.CreateTopic(topic, int64(numPartitions))
+		msg, err := client.CreateTopic(topic, int64(numShards))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -66,10 +66,10 @@ func bootstrapCreateTopic() {
 	)
 
 	CreateTopicCmd.PersistentFlags().IntVarP(
-		&numPartitions,
-		"num-partitions",
+		&numShards,
+		"num-shards",
 		"n",
 		1,
-		"The number of partitions the topic shall have",
+		"The number of shards the topic shall have",
 	)
 }

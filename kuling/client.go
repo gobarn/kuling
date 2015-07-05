@@ -51,9 +51,9 @@ func (c *Client) Ping() (string, error) {
 }
 
 // CreateTopic calls the server and asks it to create topic with given number
-// of partitions
-func (c *Client) CreateTopic(topic string, numPartitions int64) (string, error) {
-	err := c.WriteCommand("CREATE_TOPIC", topic, numPartitions)
+// of shards
+func (c *Client) CreateTopic(topic string, numShards int64) (string, error) {
+	err := c.WriteCommand("CREATE_TOPIC", topic, numShards)
 	if err != nil {
 		return "", err
 	}
@@ -66,9 +66,9 @@ func (c *Client) CreateTopic(topic string, numPartitions int64) (string, error) 
 	return resp.(string), nil
 }
 
-// Append keyed message into partition of the topic
-func (c *Client) Append(topic, partition string, key, message []byte) (string, error) {
-	err := c.WriteCommand("APPEND", topic, partition, key, message)
+// Append keyed message into shard of the topic
+func (c *Client) Append(topic, shard string, key, message []byte) (string, error) {
+	err := c.WriteCommand("APPEND", topic, shard, key, message)
 	if err != nil {
 		return "", err
 	}
@@ -81,12 +81,12 @@ func (c *Client) Append(topic, partition string, key, message []byte) (string, e
 	return resp.(string), nil
 }
 
-// Fetch messages from the kuling server on the topic and partition starting
+// Fetch messages from the kuling server on the topic and shard starting
 // from specified start id and getting max number of messaages. Note that
 // the server have no obligation to return exactly the number of messages
 // specified, only that it will never be more.
-func (c *Client) Fetch(topic, partition string, startID, maxNumMessages, chunkSize int64) ([]*Message, error) {
-	if err := c.WriteCommand("FETCH", topic, partition, startID, maxNumMessages); err != nil {
+func (c *Client) Fetch(topic, shard string, startID, maxNumMessages, chunkSize int64) ([]*Message, error) {
+	if err := c.WriteCommand("FETCH", topic, shard, startID, maxNumMessages); err != nil {
 		return nil, err
 	}
 

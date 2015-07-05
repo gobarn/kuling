@@ -38,7 +38,7 @@ type Shard interface {
 	Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
 	// Size returns the size in bytes of all the data in the shard
 	Size() int64
-	// Close down the partition
+	// Close down the shard
 	Close() error
 }
 
@@ -261,7 +261,7 @@ func (s *FSShard) Size() int64 {
 	return total
 }
 
-// Close down the partition
+// Close down the shard
 func (s *FSShard) Close() error {
 	for _, p := range s.segments {
 		p.Close()
@@ -277,5 +277,5 @@ func (s *FSShard) String() string {
 
 // Create segment name from the
 func createSegmentName(segmentNumber int) string {
-	return fmt.Sprintf("%010d.seg", segmentNumber)
+	return fmt.Sprintf("%011d.seg", segmentNumber)
 }

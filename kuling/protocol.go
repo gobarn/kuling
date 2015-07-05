@@ -71,13 +71,13 @@ func (c *Writer) writeLen(prefix byte, n int) {
 func (c *Writer) writeString(s string) {
 	c.writeLen('$', len(s))
 	c.w.WriteString(s)
-	c.w.WriteString("\r\n")
+	c.w.Write(crlfBytes)
 }
 
 func (c *Writer) writeBytes(p []byte) {
 	c.writeLen('$', len(p))
 	c.w.Write(p)
-	c.w.WriteString("\r\n")
+	c.w.Write(crlfBytes)
 }
 
 func (c *Writer) writeInt64(n int64) {
@@ -89,13 +89,13 @@ func (c *Writer) writeInt64(n int64) {
 func (c *Writer) writeStatus(s string) {
 	c.w.WriteByte('+')
 	c.w.WriteString(s)
-	c.w.WriteString("\r\n")
+	c.w.Write(crlfBytes)
 }
 
 func (c *Writer) writeErr(s string) {
 	c.w.WriteByte('-')
 	c.w.WriteString(s)
-	c.w.WriteString("\r\n")
+	c.w.Write(crlfBytes)
 }
 
 func (c *Writer) writeInterface(i interface{}) {
@@ -123,10 +123,15 @@ func (c *Writer) writeInterface(i interface{}) {
 	}
 }
 
+// CommandWriter writes client issued commands that have name and arguments
+// to the writer. The command name is always a string and the arguments
+// can be any primitive type including byte arrays.
 type CommandWriter struct {
 	*Writer
 }
 
+// NewCommandWriter creates a new command writer that will write commands
+// to the writer
 func NewCommandWriter(w io.Writer) *CommandWriter {
 	return &CommandWriter{NewWriter(w)}
 }

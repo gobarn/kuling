@@ -11,8 +11,8 @@ import (
 
 // Topic store data in a topic
 type Topic interface {
-	// CreatePartition with the given name
-	CreatePartition(partitionName string) error
+	// Createshard with the given name
+	CreateShard(shardName string) error
 	// Write data with key and payload
 	Append(shard string, key, payload []byte) error
 	// Read data from specific shard starting form sequenceID and reading
@@ -62,7 +62,7 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 		make(map[string]Shard),
 	}
 
-	// Load all existing partitions
+	// Load all existing shards
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("topic: Could not open topic dir %s: %s", dir, err)
@@ -74,31 +74,31 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 			continue
 		}
 
-		partition, err := OpenFSShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
+		shard, err := OpenFSShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
 		if err != nil {
 			return nil, fmt.Errorf("topic: Could not load shard: %s\n", err)
 		}
 
-		topic.shards[f.Name()] = partition
+		topic.shards[f.Name()] = shard
 	}
 
 	return topic, nil
 }
 
-// CreatePartition adds a folder under the topic directory with the name
-// of the partition and adds it to the topic
-func (t *FSTopic) CreatePartition(partitionName string) error {
-	partition, err := OpenFSShard(path.Join(t.dir, partitionName), t.config.SegmentMaxBytes, t.config.PermDirectories, t.config.PermData)
+// CreateShard adds a folder under the topic directory with the name
+// of the shard and adds it to the topic
+func (t *FSTopic) CreateShard(shardName string) error {
+	shard, err := OpenFSShard(path.Join(t.dir, shardName), t.config.SegmentMaxBytes, t.config.PermDirectories, t.config.PermData)
 	if err != nil {
 		return err
 	}
 
-	t.shards[partitionName] = partition
+	t.shards[shardName] = shard
 
 	return nil
 }
 
-// Delete the topic and all the partitions in it
+// Delete the topic and all the shards in it
 func (t *FSTopic) Delete() error {
 	return os.RemoveAll(t.dir)
 }
@@ -130,7 +130,7 @@ func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Wr
 	return 0, fmt.Errorf("topic: Unknown shard %s", shard)
 }
 
-// Close down the file system topic by closing all partitions
+// Close down the file system topic by closing all shards
 func (t *FSTopic) Close() error {
 	for _, p := range t.shards {
 		p.Close()
