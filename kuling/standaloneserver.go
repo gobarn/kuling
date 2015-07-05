@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strconv"
+	"reflect"
 )
 
 // LogServer struct
@@ -61,70 +61,76 @@ func (s *LogServer) ListenAndServe() {
 }
 
 func (s *LogServer) handleKUSPRequest(conn net.Conn) error {
+	cmdReader := NewReader(conn)
+	respWriter := NewResponseWriter(conn)
+
 	// Guard against panic during request handling
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Error while handling request", r)
+			log.Println("Error while handling request", r, reflect.TypeOf(r))
+			respWriter.WriteError("UNKNOW", "Client sent bad command or server had critical issue")
 		}
 	}()
 
-	cmdReader := NewClientCommandReader(conn)
-	respWriter := NewClientCommandResponseWriter(conn)
-
-	cmd, err := cmdReader.ReadCommand()
+	resp, err := cmdReader.Read()
 	if err != nil {
 		log.Printf("server: Unable to read client command: %s", err)
 		err = respWriter.WriteError("PROTOCOL", "Unable to read client command")
 		return err
 	}
 
+	// The command is always an array
+	cmdArray := resp.([]interface{})
+	cmd := string(cmdArray[0].([]byte))
 	// TODO remove
 	log.Println(cmd)
 
-	switch cmd.Name {
+	switch cmd {
 	case "PING":
-		return respWriter.WriteString("PONG")
-	case "APPEND":
-		err = s.logStore.Append(cmd.Args[0], cmd.Args[1], []byte(cmd.Args[2]), []byte(cmd.Args[3]))
-		if err != nil {
-			err = respWriter.WriteError("COMMAND", fmt.Sprintf("%s", err))
-			return err
-		}
-
-		return respWriter.WriteString("OK")
-	case "FETCH":
-		startSequenceID, err := strconv.ParseInt(cmd.Args[2], 0, 64)
-		if err != nil {
-			err = respWriter.WriteError("ARGUMENT", "offset not a number")
-		}
-		maxNumMessages, err := strconv.ParseInt(cmd.Args[3], 0, 64)
-		if err != nil {
-			err = respWriter.WriteError("ARGUMENT", "max messages not a number")
-		}
-
-		_, err = s.logStore.Copy(cmd.Args[0], cmd.Args[1], startSequenceID, maxNumMessages, conn,
-			func(totalBytesToRead int64) { respWriter.WriteCopyStart(totalBytesToRead) }, func(totalBytesRead int64) { respWriter.WriteCopyEnd(totalBytesRead) })
-
-		if err != nil {
-			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
-			return err
-		}
+		return respWriter.WriteStatus("OK")
 	case "CREATE_TOPIC":
-		numPartitions, err := strconv.ParseInt(cmd.Args[1], 0, 64)
+		_, err = s.logStore.CreateTopic(
+			string(cmdArray[1].([]byte)),
+			int(cmdArray[2].(int64)),
+		)
 		if err != nil {
-			err = respWriter.WriteError("ARGUMENT", "num partitions not a number")
+			return respWriter.WriteError("ERR", err.Error())
+		}
+		return respWriter.WriteStatus("OK")
+	case "APPEND":
+		err = s.logStore.Append(
+			string(cmdArray[1].([]byte)),
+			string(cmdArray[2].([]byte)),
+			cmdArray[3].([]byte),
+			cmdArray[4].([]byte))
+		if err != nil {
+			return respWriter.WriteError("ERR", err.Error())
 		}
 
-		_, err = s.logStore.CreateTopic(cmd.Args[0], int(numPartitions))
+		return respWriter.WriteStatus("OK")
+	case "FETCH":
+		topic := string(cmdArray[1].([]byte))
+		shard := string(cmdArray[2].([]byte))
+		startID := cmdArray[3].(int64)
+		maxNumMessages := cmdArray[4].(int64)
+
+		_, err = s.logStore.Copy(
+			topic,
+			shard,
+			startID,
+			maxNumMessages,
+			conn,
+			func(totalBytesToRead int64) { respWriter.WriteBulkStart(int(totalBytesToRead)) },
+			func(totalBytesRead int64) { respWriter.WriteBulkEnd(int(totalBytesRead)) },
+		)
 
 		if err != nil {
 			err = respWriter.WriteError("COMMAND", fmt.Sprint(err))
 			return err
 		}
 
-		return respWriter.WriteString("OK")
+		return nil
+	default:
+		return respWriter.WriteError("UNKNOWN_COMMAND", cmd)
 	}
-
-	err = respWriter.WriteError("UNKNOWN_COMMAND", cmd.Name)
-	return err
 }

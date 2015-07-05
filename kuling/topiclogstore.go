@@ -70,6 +70,8 @@ func OpenFSTopicLogStore(dir string, c *FSConfig) (LogStore, error) {
 			continue
 		}
 
+		log.Println("logstore: Found existing topic", f.Name())
+
 		topic, err := OpenFSTopic(path.Join(dir, f.Name()), c)
 		if err != nil {
 			return nil, fmt.Errorf("logstore: Could not load topic: %s\n", err)

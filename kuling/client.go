@@ -2,13 +2,16 @@ package kuling
 
 import (
 	"bytes"
-	"fmt"
+	"io"
 	"net"
+	"os"
 )
 
 // Client client that can access and command a remote log store
 type Client struct {
 	conn net.Conn
+	*CommandWriter
+	*Reader
 }
 
 // Dial connects to kuling server and returns the client connection
@@ -18,7 +21,14 @@ func Dial(address string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{conn}, nil
+	mr := io.MultiWriter(conn, os.Stdout)
+
+	return &Client{
+			conn,
+			NewCommandWriter(mr),
+			NewReader(conn),
+		},
+		nil
 }
 
 // Close connection to the server
@@ -28,64 +38,47 @@ func (c *Client) Close() error {
 
 // Ping the server and expect a PONG back! You know...
 func (c *Client) Ping() (string, error) {
-	cmdWriter := NewClientCommandWriter(c.conn)
-	if err := cmdWriter.WriteCommand(PingCmd); err != nil {
+	if err := c.WriteCommand("PING"); err != nil {
 		return "", err
 	}
 
-	cmdResponseReader := NewClientCommandResponseReader(c.conn)
-
-	resp, err := cmdResponseReader.ReadResponse(PingCmd.ResponseType)
+	resp, err := c.Read()
 	if err != nil {
 		return "", err
-	} else if resp.Err != nil {
-		return "", resp.Err
 	}
 
-	return resp.Msg, err
+	return resp.(string), nil
 }
 
 // CreateTopic calls the server and asks it to create topic with given number
 // of partitions
 func (c *Client) CreateTopic(topic string, numPartitions int64) (string, error) {
-	cmdWriter := NewClientCommandWriter(c.conn)
-	err := cmdWriter.WriteCommand(CreateTopicCmd, topic, fmt.Sprintf("%d", numPartitions))
-
+	err := c.WriteCommand("CREATE_TOPIC", topic, numPartitions)
 	if err != nil {
 		return "", err
 	}
 
-	cmdResponseReader := NewClientCommandResponseReader(c.conn)
-
-	resp, err := cmdResponseReader.ReadResponse(CreateTopicCmd.ResponseType)
+	resp, err := c.Read()
 	if err != nil {
 		return "", err
-	} else if resp.Err != nil {
-		return "", resp.Err
 	}
 
-	return resp.Msg, nil
+	return resp.(string), nil
 }
 
 // Append keyed message into partition of the topic
-func (c *Client) Append(topic, partition string, key, message string) (string, error) {
-	cmdWriter := NewClientCommandWriter(c.conn)
-	err := cmdWriter.WriteCommand(AppendCmd, topic, partition, key, message)
-
+func (c *Client) Append(topic, partition string, key, message []byte) (string, error) {
+	err := c.WriteCommand("APPEND", topic, partition, key, message)
 	if err != nil {
 		return "", err
 	}
 
-	cmdResponseReader := NewClientCommandResponseReader(c.conn)
-
-	resp, err := cmdResponseReader.ReadResponse(PingCmd.ResponseType)
+	resp, err := c.Read()
 	if err != nil {
 		return "", err
-	} else if resp.Err != nil {
-		return "", resp.Err
 	}
 
-	return resp.Msg, nil
+	return resp.(string), nil
 }
 
 // Fetch messages from the kuling server on the topic and partition starting
@@ -93,21 +86,16 @@ func (c *Client) Append(topic, partition string, key, message string) (string, e
 // the server have no obligation to return exactly the number of messages
 // specified, only that it will never be more.
 func (c *Client) Fetch(topic, partition string, startID, maxNumMessages, chunkSize int64) ([]*Message, error) {
-	cmdWriter := NewClientCommandWriter(c.conn)
-	if err := cmdWriter.WriteCommand(FetchCmd, topic, partition, fmt.Sprintf("%d", startID), fmt.Sprintf("%d", maxNumMessages)); err != nil {
+	if err := c.WriteCommand("FETCH", topic, partition, startID, maxNumMessages); err != nil {
 		return nil, err
 	}
 
-	cmdResponseReader := NewClientCommandResponseReader(c.conn)
-
-	resp, err := cmdResponseReader.ReadResponse(FetchCmd.ResponseType)
+	resp, err := c.Read()
 	if err != nil {
 		return nil, err
-	} else if resp.Err != nil {
-		return nil, resp.Err
 	}
 
-	msgReader := NewMessageReader(bytes.NewReader(resp.Blob))
+	msgReader := NewMessageReader(bytes.NewReader(resp.([]byte)))
 	msgs, err := msgReader.ReadMessages()
 	if err != nil {
 		return nil, err

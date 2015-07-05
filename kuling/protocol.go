@@ -2,6 +2,7 @@ package kuling
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -39,229 +40,274 @@ const (
 
 var crlfBytes = []byte("\r\n")
 
-// ClientCommandResponseType defines the type of response a command will expect
-type ClientCommandResponseType int
-
 const (
-	VIRTUAL ClientCommandResponseType = iota
-	BOOLEAN
-	NUMBER
-	STRING
-	STATUS
-	BULK
-	MULTI_BULK
+	okReply   = "OK"
+	pongReply = "PONG"
 )
 
-// PingCmd sends a ping down to the server and expects a pong
-var PingCmd = ClientCommand{Name: "PING", ResponseType: STRING}
+// Writer writes client command KUSP format to a io writer
+type Writer struct {
+	w *bufio.Writer
+	// Scratch space for formatting argument length.
+	// '*' or '$', length, "\r\n"
+	lenScratch [32]byte
 
-// AppendCmd sends a append cmd to the server with topic, shard, key and message
-var AppendCmd = ClientCommand{Name: "APPEND", ResponseType: STRING}
-
-// Fetch a range or messages from a topic
-var FetchCmd = ClientCommand{Name: "FETCH", ResponseType: BULK}
-
-// CreateTopicCmd
-var CreateTopicCmd = ClientCommand{Name: "CREATE_TOPIC", ResponseType: STRING}
-
-// ClientCommand contains the name and arguments that a client want to
-// send to a Kuling server
-type ClientCommand struct {
-	Name         string
-	ResponseType ClientCommandResponseType
-	Args         []string
+	// Scratch space for formatting integers and floats.
+	numScratch [40]byte
 }
 
-// ClientCommandWriter writes client command KUSP format to a io writer
-type ClientCommandWriter struct {
-	*bufio.Writer
-}
-
-// NewClientCommandWriter createas a new client command writer that writes
+// NewWriter createas a new client command writer that writes
 // to the given io writer
-func NewClientCommandWriter(w io.Writer) *ClientCommandWriter {
-	return &ClientCommandWriter{bufio.NewWriter(w)}
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{w: bufio.NewWriter(w)}
 }
 
-// WriteCommand writes the KUSP encoding of the command. Client commands are always
+func (c *Writer) writeLen(prefix byte, n int) {
+	c.w.WriteByte(prefix)
+	c.w.Write([]byte(strconv.Itoa(n)))
+	c.w.Write(crlfBytes)
+}
+
+func (c *Writer) writeString(s string) {
+	c.writeLen('$', len(s))
+	c.w.WriteString(s)
+	c.w.WriteString("\r\n")
+}
+
+func (c *Writer) writeBytes(p []byte) {
+	c.writeLen('$', len(p))
+	c.w.Write(p)
+	c.w.WriteString("\r\n")
+}
+
+func (c *Writer) writeInt64(n int64) {
+	c.w.WriteByte(':')
+	c.w.Write(strconv.AppendInt(c.numScratch[:0], n, 10))
+	c.w.Write(crlfBytes)
+}
+
+func (c *Writer) writeStatus(s string) {
+	c.w.WriteByte('+')
+	c.w.WriteString(s)
+	c.w.WriteString("\r\n")
+}
+
+func (c *Writer) writeErr(s string) {
+	c.w.WriteByte('-')
+	c.w.WriteString(s)
+	c.w.WriteString("\r\n")
+}
+
+func (c *Writer) writeInterface(i interface{}) {
+	switch i := i.(type) {
+	case string:
+		c.writeString(i)
+	case []byte:
+		c.writeBytes(i)
+	case int:
+		c.writeInt64(int64(i))
+	case int64:
+		c.writeInt64(i)
+	case bool:
+		if i {
+			c.writeString("1")
+		} else {
+			c.writeString("0")
+		}
+	case nil:
+		c.writeString("")
+	default:
+		var buf bytes.Buffer
+		fmt.Fprint(&buf, i)
+		c.writeBytes(buf.Bytes())
+	}
+}
+
+type CommandWriter struct {
+	*Writer
+}
+
+func NewCommandWriter(w io.Writer) *CommandWriter {
+	return &CommandWriter{NewWriter(w)}
+}
+
+// WriteCommand writes the encoding of the command. Client commands are always
 // sent as arrays to the server, the first entry in the array is the command and the rest
 // of the entries are the arguments of the command
-func (w *ClientCommandWriter) WriteCommand(cmd ClientCommand, args ...string) error {
-	nameBytes := []byte(cmd.Name)
+func (c *CommandWriter) WriteCommand(cmd string, args ...interface{}) error {
+	c.writeLen('*', 1+len(args))
+	c.writeString(cmd)
 
-	w.WriteByte(countByte)                        // *
-	w.Write([]byte(strconv.Itoa(len(args) + 1)))  // <num>
-	w.Write(crlfBytes)                            // \r\n
-	w.WriteByte(sizeByte)                         // $
-	w.Write([]byte(strconv.Itoa(len(nameBytes)))) // <num>
-	w.Write(crlfBytes)                            // \r\n
-	w.Write(nameBytes)                            // cmd.Name
-	w.Write(crlfBytes)                            // \r\n
+	for _, arg := range args {
+		err := c.w.Flush()
 
-	// Write each argument in the array
-	for _, s := range args {
-		w.WriteByte(sizeByte)                 // $
-		w.Write([]byte(strconv.Itoa(len(s)))) // <num>
-		w.Write(crlfBytes)                    // \r\n
-		w.Write([]byte(s))                    // argValue
-		w.Write(crlfBytes)                    // \r\n
-	}
-
-	return w.Flush()
-}
-
-// ClientCommandReader writes client command KUSP format to a io writer
-type ClientCommandReader struct {
-	*bufio.Reader
-}
-
-// NewClientCommandReader creates a new client command reader
-func NewClientCommandReader(r io.Reader) *ClientCommandReader {
-	return &ClientCommandReader{bufio.NewReader(r)}
-}
-
-// ReadCommand parses the bytes from the reader into a Client command with the
-// given name and arguments
-func (r *ClientCommandReader) ReadCommand() (ClientCommand, error) {
-	numArgsLine, _, err := r.ReadLine()
-	if err != nil {
-		// Could not read line, client sent bad communication
-		return ClientCommand{}, fmt.Errorf("kusp: Client command is rubish")
-	}
-
-	// The number of elements in the forthcoming array that we expect that the
-	// client has sent us
-	numArgs, err := strconv.ParseInt(string(numArgsLine[1:]), 0, 64)
-
-	args := make([]string, numArgs)
-
-	for i := int64(0); i < numArgs; i++ {
-		// Read argument length
-		// We don't need to use this value for now
-		_, _, err := r.ReadLine()
-		arg, _, err := r.ReadLine()
 		if err != nil {
-			return ClientCommand{}, fmt.Errorf("kusp: Client command argument is rubish")
+			return err
 		}
 
-		args[i] = string(arg)
+		c.writeInterface(arg)
 	}
 
-	// The first entry in the args list is the implicit name of the command and the rest
-	// are true arguments
-	return ClientCommand{Name: args[:1][0], Args: args[1:]}, nil
+	return c.w.Flush()
 }
 
-// ClientCommandResponse s
-type ClientCommandResponse struct {
-	Err  error
-	Msg  string
-	Blob []byte
+// ResponseWriter writes client command responses to io writer
+type ResponseWriter struct {
+	*Writer
 }
 
-// ClientCommandResponseWriter writes client command responses to io writer
-type ClientCommandResponseWriter struct {
-	*bufio.Writer
+// NewResponseWriter creates new response writer
+func NewResponseWriter(w io.Writer) *ResponseWriter {
+	return &ResponseWriter{NewWriter(w)}
 }
 
-// NewClientCommandResponseWriter creates new response writer
-func NewClientCommandResponseWriter(w io.Writer) *ClientCommandResponseWriter {
-	return &ClientCommandResponseWriter{bufio.NewWriter(w)}
-}
-
-// WriteString writes a string response to the writer
-func (w *ClientCommandResponseWriter) WriteString(s string) error {
-	w.WriteByte(okByte)
-	w.Write([]byte(s))
-	w.Write(crlfBytes)
-
-	return w.Flush()
+// WriteStatus writes a string response to the writer
+func (r *ResponseWriter) WriteStatus(s string) error {
+	r.writeStatus(s)
+	return r.w.Flush()
 }
 
 // WriteError writes error response to the writer
-func (w *ClientCommandResponseWriter) WriteError(errType, msg string) error {
-	w.WriteByte(errByte)
-	w.Write([]byte(errType))
-	w.WriteByte(spaceByte)
-	w.Write([]byte(msg))
-
-	return w.Flush()
+func (r *ResponseWriter) WriteError(errType, msg string) error {
+	r.writeErr(fmt.Sprintf("%s %s", errType, msg))
+	return r.w.Flush()
 }
 
-// WriteCopyStart writes the length information of the values that will
+// WriteBulkStart writes the length information of the values that will
 // be sent
-func (w *ClientCommandResponseWriter) WriteCopyStart(totalBytesToWrite int64) error {
-	w.WriteByte(sizeByte)                                 // $
-	w.Write([]byte(fmt.Sprintf("%d", totalBytesToWrite))) // <num>
-	w.Write(crlfBytes)                                    // \r\n
-	return w.Flush()
+func (r *ResponseWriter) WriteBulkStart(totalBytesToWrite int) error {
+	r.writeLen(sizeByte, totalBytesToWrite)
+	return r.w.Flush()
 }
 
-// WriteCopyEnd writes the ending parts of the communication to the client
-func (w *ClientCommandResponseWriter) WriteCopyEnd(totalBytesToWrite int64) error {
-	w.Write(crlfBytes) // \r\n
-	return w.Flush()
+// WriteBulkEnd writes the ending parts of the communication to the client
+func (r *ResponseWriter) WriteBulkEnd(totalBytesToWrite int) error {
+	r.w.WriteString("\r\n")
+	return r.w.Flush()
 }
 
-// ClientCommandResponseReader reads command responses from server
-type ClientCommandResponseReader struct {
-	*bufio.Reader
+// Reader reads command responses from server
+type Reader struct {
+	r *bufio.Reader
 }
 
-// NewClientCommandResponseReader creates a new client command response reader
+// NewReader creates a new client command response reader
 // that will interpret the response from the server and create a corresponding
 // struct for the type of response
-func NewClientCommandResponseReader(r io.Reader) *ClientCommandResponseReader {
-	return &ClientCommandResponseReader{bufio.NewReader(r)}
+func NewReader(r io.Reader) *Reader {
+	return &Reader{bufio.NewReader(r)}
 }
 
-// ReadResponse reads a command response from the server
-func (ccr *ClientCommandResponseReader) ReadResponse(respType ClientCommandResponseType) (ClientCommandResponse, error) {
-	// Read all bytes until \r and \n has been found
-	line, _, err := ccr.ReadLine()
+func (ccr *Reader) Read() (interface{}, error) {
+	line, _, err := ccr.r.ReadLine()
+
 	if err != nil {
-		// Could not read or could not find the new line
-		return ClientCommandResponse{}, err
+		return nil, err
 	}
 
-	// Check if the first sign indicates an error from the server
-	if line[0] == errByte {
-		return ClientCommandResponse{Err: fmt.Errorf("server: %s", line[1:])}, nil
+	if len(line) == 0 {
+		return nil, fmt.Errorf("protocol: Empty response line received from server")
 	}
 
-	// No error, use the response type to parse the expected response
-	switch respType {
-	case STRING:
-		return ClientCommandResponse{Msg: string(line[1:])}, nil
-	case BULK:
-		bytesToRead, err := strconv.ParseInt(string(line[1:]), 0, 64)
+	switch line[0] {
+	case '+':
+		switch {
+		// Some optimizations due to frequent OK result
+		case len(line) == 3 && line[1] == 'O' && line[2] == 'K':
+			return okReply, nil
+		case len(line) == 5 && line[1] == 'P' && line[2] == 'O' && line[3] == 'N' && line[4] == 'G':
+			return pongReply, nil
+		default:
+			return string(line[1:]), nil
+		}
+	case '-':
+		return nil, fmt.Errorf("%s", string(line[1:]))
+	case ':':
+		return parseInt(line[1:])
+	case '$':
+		// Length information line
+		n, err := parseLen(line[1:])
+		if n < 0 || err != nil {
+			return nil, err
+		}
+		p := make([]byte, n)
+		_, err = io.ReadFull(ccr.r, p)
 		if err != nil {
-			// Could not convert string integer to integer
-			return ClientCommandResponse{}, fmt.Errorf("client: Could not convert bulk number of bytes to read to int %s", err)
+			return nil, err
 		}
-
-		blob := make([]byte, bytesToRead)
-		bytesRead, err := io.ReadAtLeast(ccr, blob, int(bytesToRead))
-		if err != nil {
-			// Error reading into byte array
-			return ClientCommandResponse{}, fmt.Errorf("client: Unknown read error %s", err)
+		if line, _, err := ccr.r.ReadLine(); err != nil {
+			return nil, err
+		} else if len(line) != 0 {
+			return nil, fmt.Errorf("protocol: Bad bulk string format")
 		}
-
-		if int64(bytesRead) != bytesToRead {
-			// The server tells us the exact bytes to read, if we could not do so
-			// something is wrong
-			return ClientCommandResponse{}, fmt.Errorf("client: Server number of bytes to read %d differs from read bytes %d", bytesToRead, len(blob))
+		return p, nil
+	case '*':
+		// Number of arguments line
+		n, err := parseLen(line[1:])
+		if n < 0 || err != nil {
+			return nil, err
 		}
-
-		// Read the final new line, we don't really care about the result
-		_, _, err = ccr.ReadLine()
-		if err != nil {
-			// No newline sent as the last value, this is incorrect protocol
-			return ClientCommandResponse{}, fmt.Errorf("client: Server response contains no new line at end of value")
+		r := make([]interface{}, n)
+		for i := range r {
+			r[i], err = ccr.Read()
+			if err != nil {
+				return nil, err
+			}
 		}
-
-		return ClientCommandResponse{Blob: blob}, nil
-	default:
-		return ClientCommandResponse{}, fmt.Errorf("client: Unknown response type %v", respType)
+		return r, nil
 	}
+
+	return nil, nil
+}
+
+// parseLen parses bulk string and array lengths.
+func parseLen(p []byte) (int, error) {
+	if len(p) == 0 {
+		return -1, fmt.Errorf("protocol: Malformed length")
+	}
+
+	if p[0] == '-' && len(p) == 2 && p[1] == '1' {
+		return -1, nil
+	}
+
+	var n int
+	for _, b := range p {
+		n *= 10
+		if b < '0' || b > '9' {
+			return -1, fmt.Errorf("protocol: Illegal bytes in length")
+		}
+		n += int(b - '0')
+	}
+
+	return n, nil
+}
+
+func parseInt(p []byte) (interface{}, error) {
+	if len(p) == 0 {
+		return 0, fmt.Errorf("protocol: Malformed integer")
+	}
+
+	var negate bool
+	if p[0] == '-' {
+		negate = true
+		p = p[1:]
+		if len(p) == 0 {
+			return 0, fmt.Errorf("protocol: Malformed integer")
+		}
+	}
+
+	var n int64
+	for _, b := range p {
+		n *= 10
+		if b < '0' || b > '9' {
+			return 0, fmt.Errorf("protocol: Illegal bytes in length")
+		}
+		n += int64(b - '0')
+	}
+
+	if negate {
+		n = -n
+	}
+
+	return n, nil
 }
