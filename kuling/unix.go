@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-// The max mmap size, depends on OS
-const maxMapSize = 0xFFFFFFFFFFFF // 256TB
-
-// The largest step that can be taken when remapping the mmap.
-const maxMmapStep = 1 << 30 // 1GB
-
 // Taken from the magnificant project BoltDB:
 // https://github.com/boltdb/bolt
 // flock acquires an advisory lock on a file descriptor.
