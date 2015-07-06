@@ -3,12 +3,10 @@ package command
 import (
 	"fmt"
 
+	"github.com/fredrikbackstrom/kuling/kuling/command/client"
 	"github.com/fredrikbackstrom/kuling/kuling/command/server"
 	"github.com/spf13/cobra"
 )
-
-// The version of Kuling
-var version = "1.0.0"
 
 // Is Application root command
 // This command does nothing except serve as a root command for all other
@@ -32,4 +30,5 @@ func init() {
 	// Append all child commands to the application command
 	AppCmd.AddCommand(VersionCmd)
 	AppCmd.AddCommand(server.ServerCmd)
+	AppCmd.AddCommand(client.ClientCmd)
 }

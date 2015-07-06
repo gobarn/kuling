@@ -1,23 +1,20 @@
-package server
+package client
 
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
 )
 
-// CreateTopicCmd will call the server and ask it to create a topic with
-// given number of shards
-var CreateTopicCmd = &cobra.Command{
-	Use:   "create-topic",
-	Short: "Create Topic",
-	Long:  "Create Topic",
+// AppendCmd will read from the server
+var AppendCmd = &cobra.Command{
+	Use:   "append",
+	Short: "Append Message",
+	Long:  "Append message to topic and shard",
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO move this out to some help function for commands calling the server
 		defer func() {
 			if r := recover(); r != nil {
 				if r == io.EOF {
@@ -31,25 +28,27 @@ var CreateTopicCmd = &cobra.Command{
 
 		client, err := kuling.Dial(fetchAddress)
 		defer client.Close()
+
 		if err != nil {
-			log.Println(err)
-			os.Exit(0)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 
-		msg, err := client.CreateTopic(topic, int64(numShards))
+		msg, err := client.Append(topic, shard, []byte(key), []byte(message))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
 		fmt.Println(msg)
+		os.Exit(0)
 	},
 }
 
 // init sets up flags for the client commands
-func bootstrapCreateTopic() {
+func bootstrapAppend() {
 	// host is available for all commands under server
-	CreateTopicCmd.PersistentFlags().StringVarP(
+	AppendCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
 		"host",
 		"a",
@@ -57,19 +56,35 @@ func bootstrapCreateTopic() {
 		"Host where server is running",
 	)
 
-	CreateTopicCmd.PersistentFlags().StringVarP(
+	AppendCmd.PersistentFlags().StringVarP(
 		&topic,
 		"topic",
 		"t",
 		"",
-		"Name of topic to create",
+		"Topic to stream messages from",
 	)
 
-	CreateTopicCmd.PersistentFlags().IntVarP(
-		&numShards,
-		"num-shards",
-		"n",
-		1,
-		"The number of shards the topic shall have",
+	AppendCmd.PersistentFlags().StringVarP(
+		&shard,
+		"shard",
+		"s",
+		"",
+		"Shard in the stream to read from",
+	)
+
+	AppendCmd.PersistentFlags().StringVarP(
+		&key,
+		"key",
+		"k",
+		"",
+		"Key of message",
+	)
+
+	AppendCmd.PersistentFlags().StringVarP(
+		&message,
+		"message",
+		"m",
+		"",
+		"Message to append",
 	)
 }

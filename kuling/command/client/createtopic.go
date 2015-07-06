@@ -1,4 +1,4 @@
-package server
+package client
 
 import (
 	"fmt"
@@ -10,11 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// PingCmd will read from the server
-var PingCmd = &cobra.Command{
-	Use:   "ping",
-	Short: "Ping",
-	Long:  "Ping Pong!",
+// CreateTopicCmd will call the server and ask it to create a topic with
+// given number of shards
+var CreateTopicCmd = &cobra.Command{
+	Use:   "create-topic",
+	Short: "Create Topic",
+	Long:  "Create Topic",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO move this out to some help function for commands calling the server
 		defer func() {
@@ -35,7 +36,7 @@ var PingCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		msg, err := client.Ping()
+		msg, err := client.CreateTopic(topic, int64(numShards))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -46,13 +47,29 @@ var PingCmd = &cobra.Command{
 }
 
 // init sets up flags for the client commands
-func bootstrapPing() {
+func bootstrapCreateTopic() {
 	// host is available for all commands under server
-	PingCmd.PersistentFlags().StringVarP(
+	CreateTopicCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
 		"host",
 		"a",
 		kuling.DefaultFetchAddress,
 		"Host where server is running",
+	)
+
+	CreateTopicCmd.PersistentFlags().StringVarP(
+		&topic,
+		"topic",
+		"t",
+		"",
+		"Name of topic to create",
+	)
+
+	CreateTopicCmd.PersistentFlags().IntVarP(
+		&numShards,
+		"num-shards",
+		"n",
+		1,
+		"The number of shards the topic shall have",
 	)
 }
