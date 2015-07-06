@@ -83,11 +83,7 @@ var StandaloneServerCmd = &cobra.Command{
 
 func runServer(logStore kuling.LogStore) {
 	// Create a new log server and run it
-	logServer := kuling.NewStandaloneServer(listenAddress, logStore)
-	// Create a new RPC server and run it
-
-	// Run in a blocking call
-	logServer.ListenAndServe()
+	kuling.ListenAndServeStandalone(listenAddress, logStore)
 }
 
 // init sets up flags for the server commands

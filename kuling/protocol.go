@@ -178,15 +178,20 @@ func (r *ResponseWriter) WriteError(errType, msg string) error {
 	return r.w.Flush()
 }
 
-// WriteBulkStart writes the length information of the values that will
+// WriteArrayHeader writes the length information of the values that will
 // be sent
-func (r *ResponseWriter) WriteBulkStart(totalBytesToWrite int) error {
+func (r *ResponseWriter) WriteArrayHeader(totalBytesToWrite int) error {
 	r.writeLen(sizeByte, totalBytesToWrite)
 	return r.w.Flush()
 }
 
-// WriteBulkEnd writes the ending parts of the communication to the client
-func (r *ResponseWriter) WriteBulkEnd(totalBytesToWrite int) error {
+// Write binary array value
+func (r *ResponseWriter) Write(b []byte) (int, error) {
+	return r.w.Write(b)
+}
+
+// WriteArrayEnd writes the ending parts of the communication to the client
+func (r *ResponseWriter) WriteArrayEnd(totalBytesToWrite int) error {
 	r.w.WriteString("\r\n")
 	return r.w.Flush()
 }
