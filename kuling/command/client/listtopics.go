@@ -10,11 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// PingCmd will read from the server
-var PingCmd = &cobra.Command{
-	Use:   "ping",
-	Short: "Ping",
-	Long:  "Ping Pong!",
+// ListTopicsCmd will read from the server
+var ListTopicsCmd = &cobra.Command{
+	Use:   "list",
+	Short: "list",
+	Long:  "List all topic names",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO move this out to some help function for commands calling the server
 		defer func() {
@@ -35,12 +35,14 @@ var PingCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		msg, err := client.Ping()
+		topics, err := client.ListTopics()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		fmt.Println(msg)
+		for _, t := range topics {
+			fmt.Println(t)
+		}
 	},
 }

@@ -112,6 +112,11 @@ func (ls *FSTopicLogStore) CreateTopic(topicName string, numShards int) (Topic, 
 	return topic, nil
 }
 
+// Topics returns a map of topic names to topics
+func (ls *FSTopicLogStore) Topics() map[string]Topic {
+	return ls.topics
+}
+
 // DeleteTopic deletes topic with given name
 func (ls *FSTopicLogStore) DeleteTopic(topicName string) error {
 	if t, ok := ls.topics[topicName]; ok {

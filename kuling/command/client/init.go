@@ -1,6 +1,9 @@
 package client
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/fredrikbackstrom/kuling/kuling"
+	"github.com/spf13/cobra"
+)
 
 var (
 	topic          string
@@ -26,8 +29,15 @@ var ClientCmd = &cobra.Command{
 func init() {
 	bootstrapFetch()
 	bootstrapAppend()
-	bootstrapPing()
 	bootstrapCreateTopic()
+
+	ClientCmd.PersistentFlags().StringVarP(
+		&fetchAddress,
+		"host",
+		"a",
+		kuling.DefaultFetchAddress,
+		"Host where server is running",
+	)
 
 	// Add all commands
 	ClientCmd.AddCommand(
@@ -35,5 +45,6 @@ func init() {
 		AppendCmd,
 		PingCmd,
 		CreateTopicCmd,
+		ListTopicsCmd,
 	)
 }

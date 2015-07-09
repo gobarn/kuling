@@ -6,7 +6,6 @@ type ShardAndIP struct {
 }
 
 type Broker struct {
-	logStore *LogStore
 }
 
 // GetShardIterators on a topic for a clientID belonging to a group.

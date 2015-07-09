@@ -36,10 +36,10 @@ type Segment interface {
 var (
 	// ErrSegmentStartOffset returned when start offset larger than file
 	// or when negative
-	ErrSegmentStartOffset = errors.New("segment: Start offset illegal")
+	ErrSegmentStartOffset = errors.New("segment: start offset illegal")
 	// ErrSegmentEndOffset returned when end offset larger than file
 	// of when negative
-	ErrSegmentEndOffset = errors.New("segment: End offset illegal")
+	ErrSegmentEndOffset = errors.New("segment: end offset illegal")
 )
 
 // FSSegment s
@@ -57,25 +57,25 @@ func OpenFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
 	// Check if the file exists, if not log that it will be created
 	_, err := os.Stat(fileName)
 	if err != nil {
-		log.Printf("segment: Creating segment file %s", fileName)
+		log.Printf("segment: creating segment file %s", fileName)
 	}
 	// Open or create the segment file.
 	segmentFile, err := os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
 	if err != nil {
-		return nil, fmt.Errorf("segment: Could not open or create segment file %v", fileName)
+		return nil, fmt.Errorf("segment: could not open or create segment file %v", fileName)
 	}
 
 	// Lock file so that other processes cannot use the same file as that may
 	// cause corruption. If we cannot lock the file after the timouet then
 	// we return an error
 	if err = flock(segmentFile, 1000*time.Millisecond); err != nil {
-		return nil, fmt.Errorf("segment: Could not acquire file lock on segment file %v", fileName)
+		return nil, fmt.Errorf("segment: could not acquire file lock on segment file %v", fileName)
 	}
 
 	// Get file stat to calcualte size of segment
 	fd, err := segmentFile.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("segment: Could not get file stats for segment file %v", fileName)
+		return nil, fmt.Errorf("segment: could not get file stats for segment file %v", fileName)
 	}
 
 	return &FSSegment{
@@ -92,8 +92,13 @@ func (ss *FSSegment) Append(m *Message) error {
 
 	bytesWritten, err := mw.WriteMessage(m)
 	if err != nil {
-		log.Fatalf("segment: Could not write message to segment %v", ss.whandle.Name())
+		log.Fatalf("segment: could not write message to segment %v", ss.whandle.Name())
 		return SegmentError{err, ss}
+	}
+
+	if err = fsync(ss.whandle); err != nil {
+		log.Printf("segment: could not fsync segment file %s: %s", ss.whandle.Name(), err)
+		return err
 	}
 
 	// Increment the segments size with the number of bytes written
@@ -112,7 +117,7 @@ func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle 
 
 	readHandle, err := os.OpenFile(ss.FilePath, os.O_RDONLY, 0500)
 	if err != nil {
-		log.Fatalf("segment: Could not get read file handle %v", ss.whandle.Name())
+		log.Fatalf("segment: could not get read file handle %v", ss.whandle.Name())
 		return SegmentError{err, ss}
 	}
 	defer readHandle.Close()
@@ -120,7 +125,7 @@ func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle 
 	// Seek to the offset position
 	_, err = readHandle.Seek(offset, os.SEEK_SET)
 	if err != nil {
-		log.Fatalf("segment: Could not seek to offset in segment %v", ss.whandle.Name())
+		log.Fatalf("segment: could not seek to offset in segment %v", ss.whandle.Name())
 		return SegmentError{err, ss}
 	}
 
@@ -136,7 +141,7 @@ func (ss *FSSegment) Read(offset, endOffset int64) ([]*Message, error) {
 		mr := NewMessageReader(readHandle)
 		messages, err = mr.ReadMessages()
 		if err != nil {
-			log.Fatalf("segment: Could not read message from segment %v", ss.whandle.Name())
+			log.Fatalf("segment: could not read message from segment %v", ss.whandle.Name())
 			return SegmentError{err, ss}
 		}
 

@@ -48,14 +48,6 @@ var CreateTopicCmd = &cobra.Command{
 
 // init sets up flags for the client commands
 func bootstrapCreateTopic() {
-	// host is available for all commands under server
-	CreateTopicCmd.PersistentFlags().StringVarP(
-		&fetchAddress,
-		"host",
-		"a",
-		kuling.DefaultFetchAddress,
-		"Host where server is running",
-	)
 
 	CreateTopicCmd.PersistentFlags().StringVarP(
 		&topic,

@@ -1,71 +1,92 @@
 package kuling
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/fredrikbackstrom/kuling/kuling/resp"
+)
 
 // ListenAndServeStandalone starts a standalone server on the address
 func ListenAndServeStandalone(addr string, l LogStore) {
-	m := NewMuxHandler()
+	m := resp.NewServeMux()
 	m.HandleFunc("PING", pingHandler)
 	m.HandleFunc("CREATE_TOPIC", createTopicHandler(l))
+	m.HandleFunc("LIST_TOPICS", createListTopicsHandler(l))
 	m.HandleFunc("APPEND", createAppendHandler(l))
 	m.HandleFunc("FETCH", createFetchHandler(l))
 
-	s := &Server{addr, m}
+	s := &resp.Server{addr, m}
 	s.ListenAndServe()
 }
 
-func pingHandler(w *ResponseWriter, cmd string, args []interface{}) {
+func pingHandler(w resp.ResponseWriter, r *resp.Request) {
 	w.WriteStatus("PONG")
 }
 
-func createTopicHandler(l LogStore) HandleFunc {
-	return func(w *ResponseWriter, cmd string, args []interface{}) {
+func createTopicHandler(l LogStore) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
 		_, err := l.CreateTopic(
-			string(args[0].([]byte)),
-			int(args[1].(int64)),
+			string(r.Args[0].([]byte)),
+			int(r.Args[1].(int64)),
 		)
 		if err != nil {
-			w.WriteError("ERR", err.Error())
+			w.WriteErr("ERR", err.Error())
 		}
 
 		w.WriteStatus("OK")
 	}
 }
 
-func createAppendHandler(l LogStore) HandleFunc {
-	return func(w *ResponseWriter, cmd string, args []interface{}) {
+func createListTopicsHandler(l LogStore) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
+		m := l.Topics()
+
+		w.WriteInstruction('*', len(m))
+
+		for k := range m {
+			w.WriteString(k)
+		}
+
+		w.WriteEnd()
+	}
+}
+
+func createAppendHandler(l LogStore) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
 		err := l.Append(
-			string(args[0].([]byte)),
-			string(args[1].([]byte)),
-			args[2].([]byte),
-			args[3].([]byte))
+			string(r.Args[0].([]byte)),
+			string(r.Args[1].([]byte)),
+			r.Args[2].([]byte),
+			r.Args[3].([]byte))
+
 		if err != nil {
-			w.WriteError("ERR", err.Error())
+			w.WriteErr("ERR", err.Error())
+			return
 		}
 
 		w.WriteStatus("OK")
 	}
 }
 
-func createFetchHandler(l LogStore) HandleFunc {
-	return func(w *ResponseWriter, cmd string, args []interface{}) {
-		topic := string(args[0].([]byte))
-		shard := string(args[1].([]byte))
-		startID := args[2].(int64)
-		maxNumMessages := args[3].(int64)
+func createFetchHandler(l LogStore) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
+		topic := string(r.Args[0].([]byte))
+		shard := string(r.Args[1].([]byte))
+		startID := r.Args[2].(int64)
+		maxNumMessages := r.Args[3].(int64)
 
 		_, err := l.Copy(
 			topic,
 			shard,
 			startID,
 			maxNumMessages,
-			w,
-			func(totalBytesToRead int64) { w.WriteArrayHeader(int(totalBytesToRead)) },
-			func(totalBytesRead int64) { w.WriteArrayEnd(int(totalBytesRead)) },
+			r.Writer, // Special handling to get speed? from using the underlying raw connection
+			func(totalBytesToRead int64) { w.WriteInstruction('$', int(totalBytesToRead)) },
+			func(totalBytesRead int64) { w.WriteEnd() },
 		)
 
 		if err != nil {
-			w.WriteError("ERR", fmt.Sprintf("%s : %s", cmd, err))
+			w.WriteErr("ERR", fmt.Sprintf("%s : %s", r.Cmd, err))
 		}
 	}
 }

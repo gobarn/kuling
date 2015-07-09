@@ -49,14 +49,6 @@ var FetchCmd = &cobra.Command{
 
 // init sets up flags for the client commands
 func bootstrapFetch() {
-	// host is available for all commands under server
-	FetchCmd.PersistentFlags().StringVarP(
-		&fetchAddress,
-		"host",
-		"a",
-		kuling.DefaultFetchAddress,
-		"Host where server is running",
-	)
 
 	FetchCmd.PersistentFlags().StringVarP(
 		&topic,

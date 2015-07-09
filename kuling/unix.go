@@ -37,3 +37,9 @@ func flock(f *os.File, timeout time.Duration) error {
 func funlock(f *os.File) error {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 }
+
+// Sync file handle which causes a fsync and makes sure that any write operations
+// is persisted and survives a crash
+func fsync(f *os.File) error {
+	return f.Sync()
+}
