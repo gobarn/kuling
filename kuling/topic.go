@@ -13,6 +13,8 @@ import (
 type Topic interface {
 	// Createshard with the given name
 	CreateShard(shardName string) error
+	// Shards gets a list of shards
+	Shards() map[string]Shard
 	// Write data with key and payload
 	Append(shard string, key, payload []byte) error
 	// Read data from specific shard starting form sequenceID and reading
@@ -96,6 +98,11 @@ func (t *FSTopic) CreateShard(shardName string) error {
 	t.shards[shardName] = shard
 
 	return nil
+}
+
+// Shards gets a all shards for the topic
+func (t *FSTopic) Shards() map[string]Shard {
+	return t.shards
 }
 
 // Delete the topic and all the shards in it

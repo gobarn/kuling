@@ -30,6 +30,7 @@ func init() {
 	bootstrapFetch()
 	bootstrapAppend()
 	bootstrapCreateTopic()
+	bootstrapShards()
 
 	ClientCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
@@ -46,5 +47,6 @@ func init() {
 		PingCmd,
 		CreateTopicCmd,
 		ListTopicsCmd,
+		ListShardsCmd,
 	)
 }

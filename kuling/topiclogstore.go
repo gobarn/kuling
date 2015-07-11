@@ -118,12 +118,21 @@ func (ls *FSTopicLogStore) Topics() map[string]Topic {
 }
 
 // DeleteTopic deletes topic with given name
-func (ls *FSTopicLogStore) DeleteTopic(topicName string) error {
-	if t, ok := ls.topics[topicName]; ok {
+func (ls *FSTopicLogStore) DeleteTopic(topic string) error {
+	if t, ok := ls.topics[topic]; ok {
 		return t.Delete()
 	}
 
-	return fmt.Errorf("topic: Unknown topic %s", topicName)
+	return fmt.Errorf("topic: Unknown topic %s", topic)
+}
+
+// Shards get a list of shards for a topic
+func (ls *FSTopicLogStore) Shards(topic string) (map[string]Shard, error) {
+	if t, ok := ls.topics[topic]; ok {
+		return t.Shards(), nil
+	}
+
+	return nil, fmt.Errorf("topic: Unknown topic %s", topic)
 }
 
 // Append data to log store in given topic and shard

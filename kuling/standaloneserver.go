@@ -10,8 +10,11 @@ import (
 func ListenAndServeStandalone(addr string, l LogStore) {
 	m := resp.NewServeMux()
 	m.HandleFunc("PING", pingHandler)
+
 	m.HandleFunc("CREATE_TOPIC", createTopicHandler(l))
 	m.HandleFunc("LIST_TOPICS", createListTopicsHandler(l))
+	m.HandleFunc("LIST_SHARDS", createListTopicShardsHandler(l))
+
 	m.HandleFunc("APPEND", createAppendHandler(l))
 	m.HandleFunc("FETCH", createFetchHandler(l))
 
@@ -45,6 +48,24 @@ func createListTopicsHandler(l LogStore) resp.HandleFunc {
 
 		for k := range m {
 			w.WriteString(k)
+		}
+
+		w.WriteEnd()
+	}
+}
+
+func createListTopicShardsHandler(l LogStore) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
+		shards, err := l.Shards(string(r.Args[0].([]byte)))
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		w.WriteInstruction('*', len(shards))
+
+		for s := range shards {
+			fmt.Println("SHARD", s)
+			w.WriteString(s)
 		}
 
 		w.WriteEnd()

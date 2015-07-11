@@ -17,6 +17,8 @@ type LogStore interface {
 	CreateTopic(topic string, numShards int) (Topic, error)
 	// Topics returns a slice of topics
 	Topics() map[string]Topic
+	// Shards gets all shards for a topic
+	Shards(topic string) (map[string]Shard, error)
 	// Append inserts the paylooad into the topic and shard
 	Append(topic, shard string, key, payload []byte) error
 	// Read will take a collection of messages and return that collection as

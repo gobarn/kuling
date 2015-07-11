@@ -90,6 +90,27 @@ func (c *Client) ListTopics() ([]string, error) {
 	return topics, nil
 }
 
+// ListShards list all shards for a topic
+func (c *Client) ListShards(topic string) ([]string, error) {
+	err := c.WriteArray("LIST_SHARDS", topic)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	result := resp.([]interface{})
+	shards := make([]string, len(result))
+	for i, shard := range result {
+		shards[i] = string(shard.([]byte))
+	}
+
+	return shards, nil
+}
+
 // Append keyed message into shard of the topic
 func (c *Client) Append(topic, shard string, key, message []byte) (string, error) {
 	err := c.WriteArray("APPEND", topic, shard, key, message)
