@@ -8,13 +8,6 @@ import (
 	"os"
 )
 
-// Request coming from the client to a server
-type Request struct {
-	Writer io.Writer
-	Cmd    string
-	Args   []interface{}
-}
-
 // ResponseWriter writes client command responses to io writer
 type ResponseWriter interface {
 	WriteInterface(interface{}) error
@@ -105,12 +98,12 @@ func (s *Server) ListenAndServe() {
 		// the request has been handled
 		go func() {
 			defer conn.Close()
-			s.handleRequest(conn)
+			s.handleConn(conn)
 		}()
 	}
 }
 
-func (s *Server) handleRequest(conn net.Conn) {
+func (s *Server) handleConn(conn net.Conn) {
 	r := NewReader(conn)
 	// TODO remove multiwriter
 	mw := io.MultiWriter(conn, os.Stdout)
