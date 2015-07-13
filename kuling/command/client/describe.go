@@ -10,11 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ListTopicsCmd will read from the server
-var ListTopicsCmd = &cobra.Command{
-	Use:   "list",
-	Short: "list",
-	Long:  "List all topic names",
+var describeCmd = &cobra.Command{
+	Use:   "describe",
+	Short: "describe",
+	Long:  "Describe list all shards for topic",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO move this out to some help function for commands calling the server
 		defer func() {
@@ -35,14 +34,24 @@ var ListTopicsCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		topics, err := client.ListTopics()
+		shards, err := client.Describe(topic)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		for _, t := range topics {
-			fmt.Println(t)
+		for _, s := range shards {
+			fmt.Println(s)
 		}
 	},
+}
+
+func bootstrapDescribe() {
+	describeCmd.PersistentFlags().StringVarP(
+		&topic,
+		"topic",
+		"t",
+		"",
+		"Topic to list shards from",
+	)
 }

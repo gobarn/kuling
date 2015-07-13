@@ -27,10 +27,10 @@ var ClientCmd = &cobra.Command{
 
 // Broker command/broker init function that sets up
 func init() {
-	bootstrapFetch()
-	bootstrapAppend()
-	bootstrapCreateTopic()
-	bootstrapShards()
+	bootstrapGet()
+	bootstrapPut()
+	bootstrapCreate()
+	bootstrapDescribe()
 
 	ClientCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
@@ -42,11 +42,11 @@ func init() {
 
 	// Add all commands
 	ClientCmd.AddCommand(
-		FetchCmd,
-		AppendCmd,
-		PingCmd,
-		CreateTopicCmd,
-		ListTopicsCmd,
-		ListShardsCmd,
+		pingCmd,
+		createCmd,
+		listCmd,
+		describeCmd,
+		putCmd,
+		getCmd,
 	)
 }

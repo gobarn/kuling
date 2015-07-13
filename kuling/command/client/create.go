@@ -10,11 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ListShardsCmd will read from the server
-var ListShardsCmd = &cobra.Command{
-	Use:   "shards",
-	Short: "shards",
-	Long:  "List all shards for topic",
+var createCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create Topic",
+	Long:  "Create Topic",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO move this out to some help function for commands calling the server
 		defer func() {
@@ -35,24 +34,30 @@ var ListShardsCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		shards, err := client.ListShards(topic)
+		msg, err := client.Create(topic, int64(numShards))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		for _, s := range shards {
-			fmt.Println(s)
-		}
+		fmt.Println(msg)
 	},
 }
 
-func bootstrapShards() {
-	ListShardsCmd.PersistentFlags().StringVarP(
+func bootstrapCreate() {
+	createCmd.PersistentFlags().StringVarP(
 		&topic,
 		"topic",
 		"t",
 		"",
-		"Topic to list shards from",
+		"Name of topic to create",
+	)
+
+	createCmd.PersistentFlags().IntVarP(
+		&numShards,
+		"num-shards",
+		"n",
+		1,
+		"The number of shards the topic shall have",
 	)
 }

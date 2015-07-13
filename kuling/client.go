@@ -18,7 +18,7 @@ type Client struct {
 
 // Dial connects to kuling server and returns the client connection
 func Dial(address string) (*Client, error) {
-	conn, err := net.Dial("tcp4", address)
+	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +53,10 @@ func (c *Client) Ping() (string, error) {
 	return resp.(string), nil
 }
 
-// CreateTopic calls the server and asks it to create topic with given number
+// Create calls the server and asks it to create topic with given number
 // of shards
-func (c *Client) CreateTopic(topic string, numShards int64) (string, error) {
-	err := c.WriteArray("CREATE_TOPIC", topic, numShards)
+func (c *Client) Create(topic string, numShards int64) (string, error) {
+	err := c.WriteArray("CREATE", topic, numShards)
 	if err != nil {
 		return "", err
 	}
@@ -69,9 +69,9 @@ func (c *Client) CreateTopic(topic string, numShards int64) (string, error) {
 	return resp.(string), nil
 }
 
-// ListTopics lists all topic names
-func (c *Client) ListTopics() ([]string, error) {
-	err := c.WriteArray("LIST_TOPICS")
+// List lists all topic names
+func (c *Client) List() ([]string, error) {
+	err := c.WriteArray("LIST")
 	if err != nil {
 		return nil, err
 	}
@@ -90,9 +90,9 @@ func (c *Client) ListTopics() ([]string, error) {
 	return topics, nil
 }
 
-// ListShards list all shards for a topic
-func (c *Client) ListShards(topic string) ([]string, error) {
-	err := c.WriteArray("LIST_SHARDS", topic)
+// Describe list all shards for a topic
+func (c *Client) Describe(topic string) ([]string, error) {
+	err := c.WriteArray("DESCRIBE", topic)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +111,9 @@ func (c *Client) ListShards(topic string) ([]string, error) {
 	return shards, nil
 }
 
-// Append keyed message into shard of the topic
-func (c *Client) Append(topic, shard string, key, message []byte) (string, error) {
-	err := c.WriteArray("APPEND", topic, shard, key, message)
+// Put keyed message into shard of the topic
+func (c *Client) Put(topic, shard string, key, message []byte) (string, error) {
+	err := c.WriteArray("PUT", topic, shard, key, message)
 	if err != nil {
 		return "", err
 	}
@@ -126,12 +126,12 @@ func (c *Client) Append(topic, shard string, key, message []byte) (string, error
 	return resp.(string), nil
 }
 
-// Fetch messages from the kuling server on the topic and shard starting
+// Get messages from the kuling server on the topic and shard starting
 // from specified start id and getting max number of messaages. Note that
 // the server have no obligation to return exactly the number of messages
 // specified, only that it will never be more.
-func (c *Client) Fetch(topic, shard string, startID, maxNumMessages int64) ([]*Message, error) {
-	if err := c.WriteArray("FETCH", topic, shard, startID, maxNumMessages); err != nil {
+func (c *Client) Get(topic, shard string, startID, maxNumMessages int64) ([]*Message, error) {
+	if err := c.WriteArray("GET", topic, shard, startID, maxNumMessages); err != nil {
 		return nil, err
 	}
 

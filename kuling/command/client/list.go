@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pingCmd = &cobra.Command{
-	Use:   "ping",
-	Short: "Ping",
-	Long:  "Ping Pong!",
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "list",
+	Long:  "List all topic names",
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO move this out to some help function for commands calling the server
 		defer func() {
@@ -34,12 +34,14 @@ var pingCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		msg, err := client.Ping()
+		topics, err := client.List()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		fmt.Println(msg)
+		for _, t := range topics {
+			fmt.Println(t)
+		}
 	},
 }
