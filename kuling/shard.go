@@ -28,6 +28,7 @@ var (
 
 // Shard store data in one specific shard
 type Shard interface {
+	ID() string
 	// Write data with key and payload to the active segment in the shard
 	Append(key, payload []byte) error
 	// Read data starting form sequenceID and reading
@@ -127,6 +128,11 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 			&sync.RWMutex{},
 		},
 		nil
+}
+
+// ID returns the ID name of
+func (s *FSShard) ID() string {
+	return s.dir
 }
 
 // Append key and payload message

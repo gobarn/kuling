@@ -8,25 +8,51 @@ CREATE : Stream Create
 
 DESCRIBE : Topic shard description
 ->topic
-<-:num_shards
+<- [shardID:s]
 
 PUT : Put records on topic
--> * topic, key, value
-<- * :shard_num, :sequence_id
+-> * topic, shardKey, data
+<- OK/ERR
+
+PUTS : Put records on topic with set sharding hash. This way the client can control
+the place where a record is put to group records into one shard
+-> * topic, shardKey, shardHash, data
+<- OK/ERR
 
 GET : Get records from topic
--> topic, :startSequenceID, :maxNumMessages
+-> topic, shard, :startSequenceID, :maxNumMessages
 <- binary_messages
 
 
-ITER_GET : Get iterator for topic shard given a group name, if the group does not exist it is created.
--> topic, :shard_num, group
-<- :ownerID, :groupSequenceID
+
+
+THE ITERATORS SHOLD BE OWNED BY THE SERVER, NOT THE BROKER! BROKER SENDS
+ITERATORS DOWN TO THE SERVER SO THERE IS NEVER SERVER->BROKER communication,
+THE BROKER ISSUES ITERATORS AND TELLS THE CLIENT WHICH IP THAT HOLD THE ITERATORS
+THIS IS POSSIBLE SINCE THE ITERATOR IS PER SHARD
+
+ITERATION:
+
+GRP_JOIN : client joins a group
+-> group, client
+<- OK/ERR
+
+GRP_HB : Group heart beat
+-> group, client
+
+GRP_LEAVE : issue leave cmd for client
+-> group, client
+<- OK/ERR
+
+ITER_GET : Get iterator for topic shard given a group name. There can only be one iterator per client/group/topic/shard
+whenever a new client tries to get a iterator a rebalance occur on the server side which forces all other clients
+to re-issue a new ITER_GET command as their ITER command will not return a nextIterator
+-> topic, shard
+<- iterator <iteartor = IP/shardID/sequenceNumber/maxNumMessages>
 <- ERR/ERR_NOT_OWNER
 
-ITER : Get next batch of messages given group iteration
--> :ownerID, :groupSequenceID
-<- binary_messages
 
-ITER_PUT : Put the groups current sequence ID in a topic
--> :ownerID, :groupSequnceID
+
+ITER : Get next batch of messages given group iterator. The iterator contains the shard and the position in that shard
+-> iterator
+<- nextIterator, binary_messages
