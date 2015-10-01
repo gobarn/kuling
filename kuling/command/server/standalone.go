@@ -25,13 +25,13 @@ var StandaloneServerCmd = &cobra.Command{
 	Short: "Start standalone server",
 	Long:  "Start standalone server",
 	Run: func(cmd *cobra.Command, args []string) {
-		// Create global config
-		c := &kuling.FSConfig{
-			0755,
-			0655,
-			1024 * 1000 * 10, // 10MB
+
+		c := &kuling.Config{
+			PermDirectories: 0755,
+			PermData:        0655,
+			SegmentMaxBytes: 1024 * 1000 * 10, // 10MB
 		}
-		// Open the log store
+
 		logStore, err := kuling.OpenLogStore(dataDir, c)
 
 		if err != nil {
@@ -39,12 +39,10 @@ var StandaloneServerCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// CREATE TEMP TOPIC
 		if _, err := logStore.CreateTopic("emails", 10); err != nil {
 			// log.Fatal(err)
 		}
 
-		// TEMP writes to get some data
 		// for i := 0; i < 500000; i++ {
 		// 	err := logStore.Append("emails", "0", []byte(fmt.Sprintf("john@doe.com_%d", i)), []byte("Has all the stuff"))
 		//
@@ -95,14 +93,6 @@ func bootstrapServer() {
 		"a",
 		kuling.DefaultFetchAddress,
 		"Listen address for LogStore Server",
-	)
-
-	StandaloneServerCmd.PersistentFlags().StringVarP(
-		&commandAddress,
-		"command-address",
-		"c",
-		kuling.DefaultCommandAddress,
-		"Listen address for Command RPC Server",
 	)
 
 	StandaloneServerCmd.PersistentFlags().StringVarP(

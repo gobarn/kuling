@@ -17,10 +17,10 @@ type PreCopy func(totalBytesToCopy int64)
 // out. It tells the caller the number of bytes that were actually read
 type PostCopy func(totalBytesCopied int64)
 
-// FSConfig contains configurations that are used during runtime and
+// Config contains configurations that are used during runtime and
 // init of the file system based topic store. For instance segment max size
 // and other configurations
-type FSConfig struct {
+type Config struct {
 	// Permissions for data and files in the file system topic store
 	PermDirectories, PermData os.FileMode
 	// Maximum bytes that will get squezed into one segment file before
@@ -31,7 +31,7 @@ type FSConfig struct {
 // LogStore is a file system based log store.
 type LogStore struct {
 	// Global configuration for all topics
-	config *FSConfig
+	config *Config
 	// Root directory of log store
 	dir string
 	// Map of topic names to file system topics structs
@@ -41,7 +41,7 @@ type LogStore struct {
 }
 
 // OpenLogStore opens or create ile system topic log store
-func OpenLogStore(dir string, c *FSConfig) (*LogStore, error) {
+func OpenLogStore(dir string, c *Config) (*LogStore, error) {
 	if c.PermDirectories < 0700 {
 		return nil, fmt.Errorf("logstore: directories must have execute right for running user")
 	}
@@ -178,12 +178,11 @@ func (ls *LogStore) Closed() <-chan struct{} {
 
 // Close the file system topics down
 func (ls *LogStore) Close() error {
+	defer close(ls.closed)
 	// Close the closed channel
 	for _, t := range ls.topics {
 		t.Close()
 	}
-
-	close(ls.closed)
 
 	return nil
 }

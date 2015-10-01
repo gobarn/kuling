@@ -18,7 +18,7 @@ func ListenAndServeStandalone(addr string, l *LogStore) {
 	m.HandleFunc("PUT", createAppendHandler(l))
 	m.HandleFunc("GET", createFetchHandler(l))
 
-	s := &resp.Server{addr, m}
+	s := &resp.Server{Addr: addr, Handler: m}
 	s.ListenAndServe()
 }
 
@@ -94,7 +94,7 @@ func createFetchHandler(l *LogStore) resp.HandleFunc {
 			shard,
 			startID,
 			maxNumMessages,
-			r.Writer, // Special handling to get speed? from using the underlying raw connection
+			r.Writer, // Special handling to get speed? from using the underlying raw connection this needs to be improved
 			func(totalBytesToRead int64) { w.WriteInstruction('$', int(totalBytesToRead)) },
 			func(totalBytesRead int64) { w.WriteEnd() },
 		)

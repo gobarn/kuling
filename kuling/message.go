@@ -58,7 +58,9 @@ func NewMessageWriter(w io.Writer) *MessageWriter {
 	return &MessageWriter{bufio.NewWriter(w)}
 }
 
-// WriteMessage writes the message into the writer
+// WriteMessage writes the message into the writer. It returns the number
+// of bytes writte. If the count is less than size(m), it also returns an error
+// explaining why the write is short.
 func (w *MessageWriter) WriteMessage(m *Message) (int64, error) {
 	// Write all fields into a buffer that we can flush. This gives us a
 	// transaction againts the FS for the write

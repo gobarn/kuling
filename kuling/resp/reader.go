@@ -32,7 +32,6 @@ func (ccr *Reader) Read() (interface{}, error) {
 	switch line[0] {
 	case '+':
 		switch {
-		// Some optimizations due to frequent OK result
 		case len(line) == 3 && line[1] == 'O' && line[2] == 'K':
 			return okReply, nil
 		case len(line) == 5 && line[1] == 'P' && line[2] == 'O' && line[3] == 'N' && line[4] == 'G':

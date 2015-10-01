@@ -41,7 +41,7 @@ type Shard struct {
 	// data files and directories permissions
 	permDirectories, permData os.FileMode
 	// mutex for writes, reads do not use this mutex
-	wlock *sync.RWMutex
+	wlock *sync.Mutex
 }
 
 // OpenShard opens or creates a shard from the file path
@@ -108,14 +108,9 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 			segmentMaxSByteSize,
 			permDirectories,
 			permData,
-			&sync.RWMutex{},
+			&sync.Mutex{},
 		},
 		nil
-}
-
-// ID returns the ID name of
-func (s *Shard) ID() string {
-	return s.dir
 }
 
 // Append key and payload message

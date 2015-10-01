@@ -28,7 +28,7 @@ var (
 	ErrSegmentEndOffset = errors.New("segment: end offset illegal")
 )
 
-// Segment s
+// Segment
 type Segment struct {
 	// File Path of the segment
 	FilePath string
@@ -93,31 +93,6 @@ func (ss *Segment) Append(m *Message) error {
 	return nil
 }
 
-func (ss *Segment) readAction(offset, endOffset int64, action func(readHandle *os.File) error) error {
-	if offset > ss.size || offset < 0 {
-		return SegmentError{ErrSegmentStartOffset, ss}
-	}
-	if endOffset > ss.size || endOffset < 0 {
-		return SegmentError{ErrSegmentEndOffset, ss}
-	}
-
-	readHandle, err := os.OpenFile(ss.FilePath, os.O_RDONLY, 0500)
-	if err != nil {
-		log.Fatalf("segment: could not get read file handle %v", ss.whandle.Name())
-		return SegmentError{err, ss}
-	}
-	defer readHandle.Close()
-
-	// Seek to the offset position
-	_, err = readHandle.Seek(offset, os.SEEK_SET)
-	if err != nil {
-		log.Fatalf("segment: could not seek to offset in segment %v", ss.whandle.Name())
-		return SegmentError{err, ss}
-	}
-
-	return action(readHandle)
-}
-
 // Read messages from segment and parse into messages
 func (ss *Segment) Read(offset, endOffset int64) ([]*Message, error) {
 	var messages []*Message
@@ -148,6 +123,31 @@ func (ss *Segment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 	})
 
 	return copied, err
+}
+
+func (ss *Segment) readAction(offset, endOffset int64, action func(readHandle *os.File) error) error {
+	if offset > ss.size || offset < 0 {
+		return SegmentError{ErrSegmentStartOffset, ss}
+	}
+	if endOffset > ss.size || endOffset < 0 {
+		return SegmentError{ErrSegmentEndOffset, ss}
+	}
+
+	readHandle, err := os.OpenFile(ss.FilePath, os.O_RDONLY, 0500)
+	if err != nil {
+		log.Fatalf("segment: could not get read file handle %v", ss.whandle.Name())
+		return SegmentError{err, ss}
+	}
+	defer readHandle.Close()
+
+	// Seek to the offset position
+	_, err = readHandle.Seek(offset, os.SEEK_SET)
+	if err != nil {
+		log.Fatalf("segment: could not seek to offset in segment %v", ss.whandle.Name())
+		return SegmentError{err, ss}
+	}
+
+	return action(readHandle)
 }
 
 // Size returns the size in bytes of the segment

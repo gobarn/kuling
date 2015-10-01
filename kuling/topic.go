@@ -11,7 +11,7 @@ import (
 
 // Topic handles an entire topic
 type Topic struct {
-	config *FSConfig
+	config *Config
 	// topics directory
 	dir string
 	// map of shard name to shard
@@ -19,7 +19,7 @@ type Topic struct {
 }
 
 // OpenTopic opens or creates a new file system topic
-func OpenTopic(dir string, config *FSConfig) (*Topic, error) {
+func OpenTopic(dir string, config *Config) (*Topic, error) {
 	if config.PermDirectories < 0700 {
 		panic("topic: directories must have execute right for running user")
 	}
