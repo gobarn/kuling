@@ -21,20 +21,20 @@ type Topic struct {
 // OpenTopic opens or creates a new file system topic
 func OpenTopic(dir string, config *FSConfig) (*Topic, error) {
 	if config.PermDirectories < 0700 {
-		panic("topic: Directories must have execute right for running user")
+		panic("topic: directories must have execute right for running user")
 	}
 	if config.PermData < 0600 {
-		panic("topic: Files must have read and write permissions for running user")
+		panic("topic: files must have read and write permissions for running user")
 	}
 
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
-		log.Printf("topic: Creating topic directory %s", dir)
+		log.Printf("topic: creating topic directory %s", dir)
 		// The directory does not exist, lets create it
 		err := os.Mkdir(dir, config.PermDirectories)
 
 		if err != nil {
-			return nil, fmt.Errorf("topic: Could not create topic directory %s", dir)
+			return nil, fmt.Errorf("topic: could not create topic directory %s", dir)
 		}
 	}
 
@@ -47,7 +47,7 @@ func OpenTopic(dir string, config *FSConfig) (*Topic, error) {
 	// Load all existing shards
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("topic: Could not open topic dir %s: %s", dir, err)
+		return nil, fmt.Errorf("topic: could not open topic dir %s: %s", dir, err)
 	}
 
 	for _, f := range files {
@@ -58,7 +58,7 @@ func OpenTopic(dir string, config *FSConfig) (*Topic, error) {
 
 		shard, err := OpenShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
 		if err != nil {
-			return nil, fmt.Errorf("topic: Could not load shard: %s\n", err)
+			return nil, fmt.Errorf("topic: could not load shard: %s\n", err)
 		}
 
 		topic.shards[f.Name()] = shard
@@ -96,7 +96,7 @@ func (t *Topic) Append(shard string, key, payload []byte) error {
 		return s.Append(key, payload)
 	}
 
-	return fmt.Errorf("topic: Unknown shard %s", shard)
+	return fmt.Errorf("topic: unknown shard %s", shard)
 }
 
 // Read from topic shard from start sequence id and max messages
@@ -105,7 +105,7 @@ func (t *Topic) Read(shard string, startSequenceID, maxMessages int64) ([]*Messa
 		return s.Read(startSequenceID, maxMessages)
 	}
 
-	return nil, fmt.Errorf("topic: Unknown shard %s", shard)
+	return nil, fmt.Errorf("topic: unknown shard %s", shard)
 }
 
 // Copy from topic shard from start sequence id and max messages into io writer
@@ -114,7 +114,7 @@ func (t *Topic) Copy(shard string, startSequenceID, maxMessages int64, w io.Writ
 		return s.Copy(startSequenceID, maxMessages, w, preC, postC)
 	}
 
-	return 0, fmt.Errorf("topic: Unknown shard %s", shard)
+	return 0, fmt.Errorf("topic: unknown shard %s", shard)
 }
 
 // Close down the file system topic by closing all shards

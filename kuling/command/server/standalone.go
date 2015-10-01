@@ -35,7 +35,7 @@ var StandaloneServerCmd = &cobra.Command{
 		logStore, err := kuling.OpenLogStore(dataDir, c)
 
 		if err != nil {
-			log.Printf("standalone: Could not start server: %s\n", err)
+			log.Printf("standalone: could not start server: %s\n", err)
 			os.Exit(1)
 		}
 
@@ -64,14 +64,14 @@ var StandaloneServerCmd = &cobra.Command{
 			case sig := <-osSignals:
 				if sig == os.Interrupt {
 					// Received Interrupt Signal. Stop the scheduler, workers and then shut down.
-					log.Println("standalone: Received exit signal, stopping server...")
+					log.Println("standalone: received exit signal, stopping server...")
 					// Stop log store
 					logStore.Close()
 					// Wait for the log store to close down
 					for {
 						select {
 						case <-logStore.Closed():
-							log.Println("standalone: Closed")
+							log.Println("standalone: closed")
 							os.Exit(0)
 						}
 					}

@@ -21,22 +21,22 @@ const valueLen = 8
 const valueSizeLen = 8
 
 // Index is closed
-var ErrIndexClosed = errors.New("index: Index has been closed")
+var ErrIndexClosed = errors.New("index: index has been closed")
 
 // The index write could not be made
-var ErrIndexWriteFailed = errors.New("index: Index write failed")
+var ErrIndexWriteFailed = errors.New("index: index write failed")
 
 // ErrSequenceIDNotFound tells the user that the sequecne ID is to high or low
-var ErrSequenceIDNotFound = errors.New("index: Sequence ID not found")
+var ErrSequenceIDNotFound = errors.New("index: sequence ID not found")
 
 // ErrIndexFileCouldNotBeOpened the index file could not be opened
-var ErrIndexFileCouldNotBeOpened = errors.New("index: Index file could not be opened")
+var ErrIndexFileCouldNotBeOpened = errors.New("index: index file could not be opened")
 
 // ErrNegativeOffset offset cannot be negative
-var ErrNegativeOffset = errors.New("index: Negative offset")
+var ErrNegativeOffset = errors.New("index: negative offset")
 
 // ErrPathNotSet the path was not set correctly
-var ErrPathNotSet = errors.New("index: Path not set")
+var ErrPathNotSet = errors.New("index: path not set")
 
 // LogIndex struct that knows how a index for a log file is
 type LogIndex struct {
@@ -127,7 +127,7 @@ func (idx *LogIndex) Next(segmentNumber, offsetValue int64) (int64, error) {
 		return 0, ErrNegativeOffset
 	}
 	if segmentNumber < 0 {
-		return 0, fmt.Errorf("index: Segment number negative")
+		return 0, fmt.Errorf("index: segment number negative")
 	}
 
 	// Writelock the index and defer the unlock

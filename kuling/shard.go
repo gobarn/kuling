@@ -49,17 +49,17 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 	// Check that the shard directory exist, if not then create the directory
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
-		log.Printf("shard: Creating shard directory %s", dir)
+		log.Printf("shard: creating shard directory %s", dir)
 		err := os.Mkdir(dir, permDirectories)
 
 		if err != nil {
-			return nil, fmt.Errorf("shard: Could not create shard directory %s: %s", dir, err)
+			return nil, fmt.Errorf("shard: could not create shard directory %s: %s", dir, err)
 		}
 	}
 
 	index, err := OpenIndex(path.Join(dir, "shard.idx"), permData)
 	if err != nil {
-		return nil, fmt.Errorf("shard: Could not open shard index file: %s", err)
+		return nil, fmt.Errorf("shard: could not open shard index file: %s", err)
 	}
 
 	var segments []*Segment
@@ -68,7 +68,7 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 	// such that the first segment file is loaded first.
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("shard: Could not open shard dir %s: %s", dir, err)
+		return nil, fmt.Errorf("shard: could not open shard dir %s: %s", dir, err)
 	}
 
 	for _, f := range files {
@@ -82,7 +82,7 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 
 		segment, err := OpenSegment(path.Join(dir, f.Name()), permData)
 		if err != nil {
-			return nil, fmt.Errorf("shard: Could not load segment file(s): %s\n", err)
+			return nil, fmt.Errorf("shard: could not load segment file(s): %s\n", err)
 		}
 
 		segments = append(segments, segment)
@@ -93,7 +93,7 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 		// segment file
 		segment, err := OpenSegment(path.Join(dir, createSegmentName(1)), permData)
 		if err != nil {
-			log.Printf("shard: Could not load segment file(s): %s", err)
+			log.Printf("shard: could not load segment file(s): %s", err)
 			return nil, err
 		}
 
@@ -163,7 +163,7 @@ func (s *Shard) Append(key, payload []byte) error {
 		// TODO: Not an ideal situation where we could not append the message to the
 		// active segment and have already commited the next sequenceID meaning that
 		// the id will not be used and may be confusing or cause errors down the line
-		return fmt.Errorf("shard: WARN: Could not append message to active segment. Index id %d will be empty: %s", sequenceID, err)
+		return fmt.Errorf("shard: warn: Could not append message to active segment. Index id %d will be empty: %s", sequenceID, err)
 	}
 
 	return nil
@@ -191,7 +191,7 @@ func (s *Shard) readAction(startSequenceID, maxMessages int64, action func(start
 	segment := s.segments[segmentNumber]
 
 	if err != nil {
-		return errors.New("shard: Could not find segment for start sequence ID, have the file been removed?")
+		return errors.New("shard: could not find segment for start sequence ID, have the file been removed?")
 	}
 
 	_, endOffset, err := s.index.SegmentAndOffset(startSequenceID + maxMessages)

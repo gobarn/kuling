@@ -43,15 +43,15 @@ type LogStore struct {
 // OpenLogStore opens or create ile system topic log store
 func OpenLogStore(dir string, c *FSConfig) (*LogStore, error) {
 	if c.PermDirectories < 0700 {
-		return nil, fmt.Errorf("logstore: Directories must have execute right for running user")
+		return nil, fmt.Errorf("logstore: directories must have execute right for running user")
 	}
 	if c.PermData < 0600 {
-		return nil, fmt.Errorf("logstore: Files must have read and write permissions for running user")
+		return nil, fmt.Errorf("logstore: files must have read and write permissions for running user")
 	}
 
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
-		log.Println("logstore: Path is not a directory")
+		log.Println("logstore: path is not a directory")
 		return nil, err
 	}
 
@@ -69,7 +69,7 @@ func OpenLogStore(dir string, c *FSConfig) (*LogStore, error) {
 	// such that the first segment file is loaded first.
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("logstore: Could not open logstore dir %s: %s", dir, err)
+		return nil, fmt.Errorf("logstore: could not open logstore dir %s: %s", dir, err)
 	}
 
 	for _, f := range files {
@@ -78,11 +78,11 @@ func OpenLogStore(dir string, c *FSConfig) (*LogStore, error) {
 			continue
 		}
 
-		log.Println("logstore: Found existing topic", f.Name())
+		log.Println("logstore: found existing topic", f.Name())
 
 		topic, err := OpenTopic(path.Join(dir, f.Name()), c)
 		if err != nil {
-			return nil, fmt.Errorf("logstore: Could not load topic: %s\n", err)
+			return nil, fmt.Errorf("logstore: could not load topic: %s\n", err)
 		}
 
 		logStore.topics[f.Name()] = topic
@@ -110,9 +110,9 @@ func (ls *LogStore) CreateTopic(topicName string, numShards int) (*Topic, error)
 				// could not be removed after issue. The topic is not added to the list
 				// of available topics so it will not be reachable until restart but
 				// then it may not work
-				return nil, fmt.Errorf("logstore: Unable to create topic %s, cleanup failed", topicName)
+				return nil, fmt.Errorf("logstore: unable to create topic %s, cleanup failed", topicName)
 			}
-			return nil, fmt.Errorf("logstore: Unable to create topic %s, cleanup success", topicName)
+			return nil, fmt.Errorf("logstore: unable to create topic %s, cleanup success", topicName)
 		}
 	}
 
@@ -131,7 +131,7 @@ func (ls *LogStore) DeleteTopic(topic string) error {
 		return t.Delete()
 	}
 
-	return fmt.Errorf("topic: Unknown topic %s", topic)
+	return fmt.Errorf("topic: unknown topic %s", topic)
 }
 
 // Shards get a list of shards for a topic
@@ -140,7 +140,7 @@ func (ls *LogStore) Shards(topic string) (map[string]*Shard, error) {
 		return t.Shards(), nil
 	}
 
-	return nil, fmt.Errorf("topic: Unknown topic %s", topic)
+	return nil, fmt.Errorf("topic: unknown topic %s", topic)
 }
 
 // Append data to log store in given topic and shard
@@ -149,7 +149,7 @@ func (ls *LogStore) Append(topic, shard string, key, payload []byte) error {
 		return t.Append(shard, key, payload)
 	}
 
-	return fmt.Errorf("topic: Unknown topic %s", topic)
+	return fmt.Errorf("topic: unknown topic %s", topic)
 }
 
 // Read messages into message array
@@ -158,7 +158,7 @@ func (ls *LogStore) Read(topic, shard string, startSequenceID, maxMessages int64
 		return t.Read(shard, startSequenceID, maxMessages)
 	}
 
-	return nil, fmt.Errorf("topic: Unknown topic %s", topic)
+	return nil, fmt.Errorf("topic: unknown topic %s", topic)
 }
 
 // Copy data from the topic, shard into the io writer
@@ -167,7 +167,7 @@ func (ls *LogStore) Copy(topic, shard string, startSequenceID, maxMessages int64
 		return t.Copy(shard, startSequenceID, maxMessages, w, preC, postC)
 	}
 
-	return 0, fmt.Errorf("topic: Unknown topic %s", topic)
+	return 0, fmt.Errorf("topic: unknown topic %s", topic)
 }
 
 // Closed returns closing channel that will broadcast when the log store
