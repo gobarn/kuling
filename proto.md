@@ -56,3 +56,37 @@ to re-issue a new ITER_GET command as their ITER command will not return a nextI
 ITER : Get next batch of messages given group iterator. The iterator contains the shard and the position in that shard
 -> iterator
 <- nextIterator, binary_messages
+
+
+
+Iter:
+
+* Only against Broker?
+* Gets iterator from Broker for each Shard in a Topic it should read.
+* Calls Broker for each call?
+*
+
+
+Describe:
+-> List
+   -> Topic
+      -> Shards
+
+
+ITERS request:
+* From client to Broker
+* Get list of iterators
+
+ITER
+* contains GET information (server-ip, topic, shard, offset)
+
+GET (topic=cats,group=merchant-reports,client_id=<random_uuid>):
+C -> B
+C <-
+
+ITER-IN-FLIGHT:
+* Time for which the broker will keep a ITER in flight and not consider it used by the GROUP/CLIENT
+
+Commit ITER + ACTUAL_NUM_MESSAGES_READ_BY_CLIENT:
+* Stores the iterator for the GROUP
+* Returns NEXT ITER
