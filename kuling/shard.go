@@ -50,9 +50,9 @@ type FSShard struct {
 	// index that spans all segments with sequence ID to offset mapping
 	index *LogIndex
 	// array of segments
-	segments []Segment
+	segments []*Segment
 	// active segment
-	activeSegment Segment
+	activeSegment *Segment
 	// segment max size
 	segmentMaxSByteSize int64
 	// data files and directories permissions
@@ -79,7 +79,7 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 		return nil, fmt.Errorf("shard: Could not open shard index file: %s", err)
 	}
 
-	var segments []Segment
+	var segments []*Segment
 
 	// Load segment files, important that we load them in correct order
 	// such that the first segment file is loaded first.
@@ -97,7 +97,7 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 			continue
 		}
 
-		segment, err := OpenFSSegment(path.Join(dir, f.Name()), permData)
+		segment, err := OpenSegment(path.Join(dir, f.Name()), permData)
 		if err != nil {
 			return nil, fmt.Errorf("shard: Could not load segment file(s): %s\n", err)
 		}
@@ -108,7 +108,7 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 	if len(segments) == 0 {
 		// If no segments found then this is a new shard, create the initial
 		// segment file
-		segment, err := OpenFSSegment(path.Join(dir, createSegmentName(1)), permData)
+		segment, err := OpenSegment(path.Join(dir, createSegmentName(1)), permData)
 		if err != nil {
 			log.Printf("shard: Could not load segment file(s): %s", err)
 			return nil, err
@@ -156,7 +156,7 @@ func (s *FSShard) Append(key, payload []byte) error {
 		// Create new segment, add it to list of segments and set to
 		// active
 		segmentName := path.Join(s.dir, createSegmentName(len(s.segments)+1))
-		newSegment, err := OpenFSSegment(segmentName, s.permData)
+		newSegment, err := OpenSegment(segmentName, s.permData)
 		if err != nil {
 			// Could not create shard, most likely due to out of disk or permissions
 			// in segment directory has changed from the outside
@@ -188,7 +188,7 @@ func (s *FSShard) Append(key, payload []byte) error {
 
 // Read messages starting from start sequence ID and max number of messages
 // forwards
-func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(startOffset, endOffset int64, segment Segment) error) error {
+func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(startOffset, endOffset int64, segment *Segment) error) error {
 	if startSequenceID < 0 {
 		return ErrShardIllegalStartSequenceID
 	}
@@ -229,7 +229,7 @@ func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(sta
 func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 	var messages []*Message
 
-	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment Segment) error {
+	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
 		// read and pars into messages
 		var err error
 		messages, err = segment.Read(startOffset, endOffset)
@@ -243,7 +243,7 @@ func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 // max number of messages forward
 func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	var copied int64
-	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment Segment) error {
+	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
 		// Call pre copy function with the number of bytes that we should read
 		preC(endOffset - startOffset)
 		// read and pars into messages

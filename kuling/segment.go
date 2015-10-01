@@ -12,25 +12,11 @@ import (
 // SegmentError error with more information about the segment
 type SegmentError struct {
 	Cause   error
-	Segment Segment
+	Segment *Segment
 }
 
 func (se SegmentError) Error() string {
 	return se.Cause.Error()
-}
-
-// Segment stores messages
-type Segment interface {
-	// Append
-	Append(m *Message) error
-	// Read messages from offset of file until end offset
-	Read(offset, endOffset int64) ([]*Message, error)
-	// Copy messages from offset of file until end offset
-	Copy(offset, endOffset int64, w io.Writer) (int64, error)
-	// Size returns the size in bytes of the segment
-	Size() int64
-	// Close the segment
-	Close() error
 }
 
 var (
@@ -42,8 +28,8 @@ var (
 	ErrSegmentEndOffset = errors.New("segment: end offset illegal")
 )
 
-// FSSegment s
-type FSSegment struct {
+// Segment s
+type Segment struct {
 	// File Path of the segment
 	FilePath string
 	// segment file handle used for writing
@@ -52,8 +38,8 @@ type FSSegment struct {
 	size int64
 }
 
-// OpenFSSegment opens or creates a new file system segment
-func OpenFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
+// OpenSegment opens or creates a new file system segment
+func OpenSegment(fileName string, perm os.FileMode) (*Segment, error) {
 	// Check if the file exists, if not log that it will be created
 	_, err := os.Stat(fileName)
 	if err != nil {
@@ -78,7 +64,7 @@ func OpenFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
 		return nil, fmt.Errorf("segment: could not get file stats for segment file %v", fileName)
 	}
 
-	return &FSSegment{
+	return &Segment{
 			fileName,
 			segmentFile,
 			fd.Size(),
@@ -87,7 +73,7 @@ func OpenFSSegment(fileName string, perm os.FileMode) (*FSSegment, error) {
 }
 
 // Append message to segment.
-func (ss *FSSegment) Append(m *Message) error {
+func (ss *Segment) Append(m *Message) error {
 	mw := NewMessageWriter(ss.whandle)
 
 	bytesWritten, err := mw.WriteMessage(m)
@@ -107,7 +93,7 @@ func (ss *FSSegment) Append(m *Message) error {
 	return nil
 }
 
-func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle *os.File) error) error {
+func (ss *Segment) readAction(offset, endOffset int64, action func(readHandle *os.File) error) error {
 	if offset > ss.size || offset < 0 {
 		return SegmentError{ErrSegmentStartOffset, ss}
 	}
@@ -133,7 +119,7 @@ func (ss *FSSegment) readAction(offset, endOffset int64, action func(readHandle 
 }
 
 // Read messages from segment and parse into messages
-func (ss *FSSegment) Read(offset, endOffset int64) ([]*Message, error) {
+func (ss *Segment) Read(offset, endOffset int64) ([]*Message, error) {
 	var messages []*Message
 
 	err := ss.readAction(offset, endOffset, func(readHandle *os.File) error {
@@ -152,7 +138,7 @@ func (ss *FSSegment) Read(offset, endOffset int64) ([]*Message, error) {
 }
 
 // Copy part of segment into io writer
-func (ss *FSSegment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
+func (ss *Segment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 	var copied int64
 
 	err := ss.readAction(offset, endOffset, func(readHandle *os.File) error {
@@ -165,16 +151,16 @@ func (ss *FSSegment) Copy(offset, endOffset int64, w io.Writer) (int64, error) {
 }
 
 // Size returns the size in bytes of the segment
-func (ss *FSSegment) Size() int64 {
+func (ss *Segment) Size() int64 {
 	return ss.size
 }
 
 // Close segment
-func (ss *FSSegment) Close() error {
+func (ss *Segment) Close() error {
 	return ss.whandle.Close()
 }
 
 // String from stringer interface
-func (ss *FSSegment) String() string {
+func (ss *Segment) String() string {
 	return fmt.Sprintf("path: %s size: %d", ss.FilePath, ss.size)
 }
