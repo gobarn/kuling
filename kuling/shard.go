@@ -26,26 +26,9 @@ var (
 	ErrShardIllegalMaxMessages = errors.New("shard: illegal start max messages")
 )
 
-// Shard store data in one specific shard
-type Shard interface {
-	ID() string
-	// Write data with key and payload to the active segment in the shard
-	Append(key, payload []byte) error
-	// Read data starting form sequenceID and reading
-	// max number of messages
-	Read(startSequenceID, maxMessages int64) ([]*Message, error)
-	// Copy data starting form sequenceID and reading
-	// max number of messages into the io writer
-	Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
-	// Size returns the size in bytes of all the data in the shard
-	Size() int64
-	// Close down the shard
-	Close() error
-}
-
-// FSShard file system shards. Keeps a zero based index for the shard that
+// Shard file system shards. Keeps a zero based index for the shard that
 // spans all segments. Knows the active segment where writes are going
-type FSShard struct {
+type Shard struct {
 	dir string
 	// index that spans all segments with sequence ID to offset mapping
 	index *LogIndex
@@ -61,8 +44,8 @@ type FSShard struct {
 	wlock *sync.RWMutex
 }
 
-// OpenFSShard opens or creates a shard from the file path
-func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permData os.FileMode) (*FSShard, error) {
+// OpenShard opens or creates a shard from the file path
+func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData os.FileMode) (*Shard, error) {
 	// Check that the shard directory exist, if not then create the directory
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
@@ -117,7 +100,7 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 		segments = append(segments, segment)
 	}
 
-	return &FSShard{
+	return &Shard{
 			dir,
 			index,
 			segments,
@@ -131,12 +114,12 @@ func OpenFSShard(dir string, segmentMaxSByteSize int64, permDirectories, permDat
 }
 
 // ID returns the ID name of
-func (s *FSShard) ID() string {
+func (s *Shard) ID() string {
 	return s.dir
 }
 
 // Append key and payload message
-func (s *FSShard) Append(key, payload []byte) error {
+func (s *Shard) Append(key, payload []byte) error {
 	if len(key) == 0 {
 		return ErrShardIllegalKey
 	}
@@ -188,7 +171,7 @@ func (s *FSShard) Append(key, payload []byte) error {
 
 // Read messages starting from start sequence ID and max number of messages
 // forwards
-func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(startOffset, endOffset int64, segment *Segment) error) error {
+func (s *Shard) readAction(startSequenceID, maxMessages int64, action func(startOffset, endOffset int64, segment *Segment) error) error {
 	if startSequenceID < 0 {
 		return ErrShardIllegalStartSequenceID
 	}
@@ -226,7 +209,7 @@ func (s *FSShard) readAction(startSequenceID, maxMessages int64, action func(sta
 
 // Read messages starting from start sequence ID and max number of messages
 // forwards
-func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
+func (s *Shard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 	var messages []*Message
 
 	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
@@ -241,7 +224,7 @@ func (s *FSShard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 
 // Copy copies from the segment that owns the sequence ID and then takes
 // max number of messages forward
-func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
+func (s *Shard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	var copied int64
 	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
 		// Call pre copy function with the number of bytes that we should read
@@ -258,7 +241,7 @@ func (s *FSShard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC Pre
 }
 
 // Size returns the total size of all segments
-func (s *FSShard) Size() int64 {
+func (s *Shard) Size() int64 {
 	var total int64
 	for _, segment := range s.segments {
 		total += segment.Size()
@@ -268,7 +251,7 @@ func (s *FSShard) Size() int64 {
 }
 
 // Close down the shard
-func (s *FSShard) Close() error {
+func (s *Shard) Close() error {
 	for _, p := range s.segments {
 		p.Close()
 	}
@@ -277,7 +260,7 @@ func (s *FSShard) Close() error {
 }
 
 // String from stringer interface
-func (s *FSShard) String() string {
+func (s *Shard) String() string {
 	return fmt.Sprintf("path: %s segments: %d size: %d", s.dir, len(s.segments), s.Size())
 }
 

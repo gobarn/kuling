@@ -9,37 +9,17 @@ import (
 	"path"
 )
 
-// Topic store data in a topic
-type Topic interface {
-	// Createshard with the given name
-	CreateShard(shardName string) error
-	// Shards gets a list of shards
-	Shards() map[string]Shard
-	// Write data with key and payload
-	Append(shard string, key, payload []byte) error
-	// Read data from specific shard starting form sequenceID and reading
-	// max number of messages
-	Read(shard string, startSequenceID, maxMessages int64) ([]*Message, error)
-	// Copy data from specific shard starting form sequenceID and reading
-	// max number of messages into the io writer
-	Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error)
-	// Delete the Topic
-	Delete() error
-	// Close the topic
-	Close() error
-}
-
-// FSTopic handles an entire topic with it's segments and indexex
-type FSTopic struct {
+// Topic handles an entire topic
+type Topic struct {
 	config *FSConfig
 	// topics directory
 	dir string
 	// map of shard name to shard
-	shards map[string]Shard
+	shards map[string]*Shard
 }
 
-// OpenFSTopic opens or creates a new file system topic
-func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
+// OpenTopic opens or creates a new file system topic
+func OpenTopic(dir string, config *FSConfig) (*Topic, error) {
 	if config.PermDirectories < 0700 {
 		panic("topic: Directories must have execute right for running user")
 	}
@@ -58,10 +38,10 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 		}
 	}
 
-	topic := &FSTopic{
+	topic := &Topic{
 		config,
 		dir,
-		make(map[string]Shard),
+		make(map[string]*Shard),
 	}
 
 	// Load all existing shards
@@ -76,7 +56,7 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 			continue
 		}
 
-		shard, err := OpenFSShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
+		shard, err := OpenShard(path.Join(dir, f.Name()), config.SegmentMaxBytes, config.PermDirectories, config.PermData)
 		if err != nil {
 			return nil, fmt.Errorf("topic: Could not load shard: %s\n", err)
 		}
@@ -89,8 +69,8 @@ func OpenFSTopic(dir string, config *FSConfig) (Topic, error) {
 
 // CreateShard adds a folder under the topic directory with the name
 // of the shard and adds it to the topic
-func (t *FSTopic) CreateShard(shardName string) error {
-	shard, err := OpenFSShard(path.Join(t.dir, shardName), t.config.SegmentMaxBytes, t.config.PermDirectories, t.config.PermData)
+func (t *Topic) CreateShard(shardName string) error {
+	shard, err := OpenShard(path.Join(t.dir, shardName), t.config.SegmentMaxBytes, t.config.PermDirectories, t.config.PermData)
 	if err != nil {
 		return err
 	}
@@ -101,17 +81,17 @@ func (t *FSTopic) CreateShard(shardName string) error {
 }
 
 // Shards gets a all shards for the topic
-func (t *FSTopic) Shards() map[string]Shard {
+func (t *Topic) Shards() map[string]*Shard {
 	return t.shards
 }
 
 // Delete the topic and all the shards in it
-func (t *FSTopic) Delete() error {
+func (t *Topic) Delete() error {
 	return os.RemoveAll(t.dir)
 }
 
 // Append key and payload to topic
-func (t *FSTopic) Append(shard string, key, payload []byte) error {
+func (t *Topic) Append(shard string, key, payload []byte) error {
 	if s, ok := t.shards[shard]; ok {
 		return s.Append(key, payload)
 	}
@@ -120,7 +100,7 @@ func (t *FSTopic) Append(shard string, key, payload []byte) error {
 }
 
 // Read from topic shard from start sequence id and max messages
-func (t *FSTopic) Read(shard string, startSequenceID, maxMessages int64) ([]*Message, error) {
+func (t *Topic) Read(shard string, startSequenceID, maxMessages int64) ([]*Message, error) {
 	if s, ok := t.shards[shard]; ok {
 		return s.Read(startSequenceID, maxMessages)
 	}
@@ -129,7 +109,7 @@ func (t *FSTopic) Read(shard string, startSequenceID, maxMessages int64) ([]*Mes
 }
 
 // Copy from topic shard from start sequence id and max messages into io writer
-func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
+func (t *Topic) Copy(shard string, startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
 	if s, ok := t.shards[shard]; ok {
 		return s.Copy(startSequenceID, maxMessages, w, preC, postC)
 	}
@@ -138,7 +118,7 @@ func (t *FSTopic) Copy(shard string, startSequenceID, maxMessages int64, w io.Wr
 }
 
 // Close down the file system topic by closing all shards
-func (t *FSTopic) Close() error {
+func (t *Topic) Close() error {
 	for _, p := range t.shards {
 		p.Close()
 	}
@@ -147,6 +127,6 @@ func (t *FSTopic) Close() error {
 }
 
 // String from stringer interface
-func (t *FSTopic) String() string {
+func (t *Topic) String() string {
 	return fmt.Sprintf("path: %s shards: %d", t.dir, len(t.shards))
 }

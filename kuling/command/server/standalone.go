@@ -32,7 +32,7 @@ var StandaloneServerCmd = &cobra.Command{
 			1024 * 1000 * 10, // 10MB
 		}
 		// Open the log store
-		logStore, err := kuling.OpenFSTopicLogStore(dataDir, c)
+		logStore, err := kuling.OpenLogStore(dataDir, c)
 
 		if err != nil {
 			log.Printf("standalone: Could not start server: %s\n", err)
@@ -81,7 +81,7 @@ var StandaloneServerCmd = &cobra.Command{
 	},
 }
 
-func runServer(logStore kuling.LogStore) {
+func runServer(logStore *kuling.LogStore) {
 	// Create a new log server and run it
 	kuling.ListenAndServeStandalone(listenAddress, logStore)
 }

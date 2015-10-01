@@ -7,7 +7,7 @@ import (
 )
 
 // ListenAndServeStandalone starts a standalone server on the address
-func ListenAndServeStandalone(addr string, l LogStore) {
+func ListenAndServeStandalone(addr string, l *LogStore) {
 	m := resp.NewServeMux()
 	m.HandleFunc("PING", pingHandler)
 
@@ -26,7 +26,7 @@ func pingHandler(w resp.ResponseWriter, r *resp.Request) {
 	w.WriteStatus("PONG")
 }
 
-func createTopicHandler(l LogStore) resp.HandleFunc {
+func createTopicHandler(l *LogStore) resp.HandleFunc {
 	return func(w resp.ResponseWriter, r *resp.Request) {
 		_, err := l.CreateTopic(
 			string(r.Args[0].([]byte)),
@@ -40,7 +40,7 @@ func createTopicHandler(l LogStore) resp.HandleFunc {
 	}
 }
 
-func createListTopicsHandler(l LogStore) resp.HandleFunc {
+func createListTopicsHandler(l *LogStore) resp.HandleFunc {
 	return func(w resp.ResponseWriter, r *resp.Request) {
 		m := l.Topics()
 
@@ -54,7 +54,7 @@ func createListTopicsHandler(l LogStore) resp.HandleFunc {
 	}
 }
 
-func createDescribeTopicHandler(l LogStore) resp.HandleFunc {
+func createDescribeTopicHandler(l *LogStore) resp.HandleFunc {
 	return func(w resp.ResponseWriter, r *resp.Request) {
 		shards, err := l.Shards(string(r.Args[0].([]byte)))
 		if err != nil {
@@ -65,7 +65,7 @@ func createDescribeTopicHandler(l LogStore) resp.HandleFunc {
 	}
 }
 
-func createAppendHandler(l LogStore) resp.HandleFunc {
+func createAppendHandler(l *LogStore) resp.HandleFunc {
 	return func(w resp.ResponseWriter, r *resp.Request) {
 		err := l.Append(
 			string(r.Args[0].([]byte)),
@@ -82,7 +82,7 @@ func createAppendHandler(l LogStore) resp.HandleFunc {
 	}
 }
 
-func createFetchHandler(l LogStore) resp.HandleFunc {
+func createFetchHandler(l *LogStore) resp.HandleFunc {
 	return func(w resp.ResponseWriter, r *resp.Request) {
 		topic := string(r.Args[0].([]byte))
 		shard := string(r.Args[1].([]byte))
