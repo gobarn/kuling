@@ -1,178 +1,115 @@
 package kuling
 
 import (
-	"encoding/base64"
 	"fmt"
-	"log"
-	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/serialx/hashring"
+	"stathat.com/c/consistent"
 )
 
-// Iter has an ID for referenceing Iterators between users of the iterator.
-// Iter is a forward iterator that reads a number of messages starting
-// from the start sequence id and reading from there. It reads from a specific
-// shard in a topic
-type Iter struct {
-	group  string
-	topic  string
-	shard  string
-	offset int64
-}
-
-// IterEncode encodes the iterator into a base64 encoded string
-func IterEncode(i *Iter) (string, error) {
-	return base64.URLEncoding.EncodeToString(
-			[]byte(
-				fmt.Sprintf("%s/%s/%s/%d", i.group, i.topic, i.shard, i.offset),
-			),
-		),
-		nil
-}
-
-// IterDecode decodes a base64 string into an iterator
-func IterDecode(iter string) (*Iter, error) {
-	arr := strings.Split(iter, "/")
-
-	s, err := strconv.ParseInt(arr[3], 0, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	it := &Iter{
-		arr[0],
-		arr[1],
-		arr[2],
-		s,
-	}
-
-	return it, nil
-}
-
-//
-// // Iterators interface for constructs that can create and
-// // invalidate iterators
-// type Iterators interface {
-// 	Get(iter string) (*Iter, bool)
-// 	Inc(iter string, numMessages int64) (string, error)
-// }
-
-// Grouper interface for type that can handle group memberships
-type Grouper interface {
-	Join(cid, gid string) error
-	Report(cid, gid string) bool
-	Leave(cid, gid string) error
-}
-
-// IterIssuer interface for types that can issue and invalidate iterators
-type IterIssuer interface {
-	Issue(id, topic, shard string, startSequenceID int64) (iter string, err error)
-	Invalidate(iter string) error
-}
-
-// Peerer gives list of peer IP
-type Peerer interface {
-	Peers() ([]string, error)
-}
-
-// Sharder returns a list of shard id:s for a topic
-type Sharder interface {
-	Shards(t string) ([]string, error)
-}
-
-type Offsetter interface {
-	GetOffset(group, topic, shard string) (int64, error)
-	SetOffset(group, topic, shard string, offset int64) error
-}
-
-type group struct {
-	id      string
-	clients *hashring.HashRing
-	iters   map[string]string
-	*sync.RWMutex
-}
-
+// Broker b
 type Broker struct {
-	groups    map[string]group
+	// group name to consistent hash group
+	groups map[string]*consistent.Consistent
+	// inflight iterators. Iterator ID to iterator
+	inflight     map[string]string
+	inflightlock sync.RWMutex
+
 	sharder   Sharder
-	peerer    Peerer
-	offsetter Offsetter
-	issuer    IterIssuer
+	iterStore IterStore
 }
 
-func (b *Broker) Commit(iter string) error {
-	if it, err := IterDecode(iter); err == nil {
-		if err := b.offsetter.SetOffset(it.group, it.topic, it.shard, it.offset); err != nil {
-			log.Println("broker: error while commiting iterator", iter, err)
-			return fmt.Errorf("broker: commit unsuccessfull")
-		}
-
-		return nil
+// NewBroker creates a new broker
+func NewBroker(sharder Sharder, iterStore IterStore) *Broker {
+	if sharder == nil {
+		panic("broker: cannot use nil sharder")
+	}
+	if iterStore == nil {
+		panic("broker: cannot use nil iterstore")
 	}
 
-	return fmt.Errorf("broker: could not decode iterator %s", iter)
+	return &Broker{
+		make(map[string]*consistent.Consistent),
+		make(map[string]string),
+		sync.RWMutex{},
+		sharder,
+		iterStore,
+	}
 }
 
-// Iterators gets a list of iterators that are owned by the client
-// making the request. The iterators contain IP, shard,
-func (b *Broker) Iterators(c, g, t string) ([]string, error) {
-	grp, ok := b.groups[g]
-	if !ok {
-		log.Println("broker: created new group", g)
-		clients := make([]string, 1)
+// Iters returns a set of iterators for the client.
+func (b *Broker) Iters(group, client, topic string) ([]string, error) {
+	var grp *consistent.Consistent
+	var ok bool
 
-		grp = group{
-			g,
-			hashring.New(clients),
-			make(map[string]string),
-			&sync.RWMutex{},
-		}
-
-		b.groups[g] = grp
+	if grp, ok = b.groups[group]; !ok {
+		grp = consistent.New()
+		grp.Add(client)
+		b.groups[group] = grp
+	} else if !b.groupHasClient(grp, client) {
+		grp.Add(client)
 	}
 
-	log.Println("broker: client", c, "added to group", g)
-
-	// todo fred need better locking, this is not working
-	grp.Lock()
-	defer grp.Unlock()
-
-	grp.clients.AddNode(c)
-
-	// invalidate all existing iterators
-	// todo-fred: invalidate only iterators that are affected
-
-	for _, iter := range grp.iters {
-		if err := b.issuer.Invalidate(iter); err != nil {
-			return nil, err
-		}
+	// For all shards in the topic find the shards that this client should
+	// iterate over
+	var shards map[string]*Shard
+	var err error
+	if shards, err = b.sharder.Shards(topic); err != nil {
+		return nil, fmt.Errorf("broker: sharder did not return shards: %s", err)
 	}
 
-	shards, err := b.sharder.Shards(t)
+	// Get all persisted iterators for the grup and topic
+	groupIters, err := b.iterStore.GetAll(group, topic)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("broker: issue fetching group iters: %s", err)
 	}
 
-	clientShards := make([]string, 1)
-	for _, s := range shards {
-		if sc, ok := grp.clients.GetNode(s); ok {
-			if sc == c {
-				o, err := b.offsetter.GetOffset(g, t, s)
-				if err != nil {
-					return nil, err
-				}
+	var clientIters []string
+	for shard := range shards {
+		if shardOwner, _ := grp.Get(shard); shardOwner == client {
 
-				iter, err := IterEncode(&Iter{g, t, s, o})
-				if err != nil {
-					return nil, fmt.Errorf("broker: %s", err)
-				}
+			iterID := createIterID(group, topic, shard)
 
-				clientShards = append(clientShards, iter)
+			var iter string
+			if offset, ok := groupIters[iterID]; ok {
+				iter = createIterFromIDAndOffset(iterID, offset)
+			} else {
+				iter = createIterFromIDAndOffset(iterID, 0)
 			}
+
+			clientIters = append(clientIters, iter)
+			b.inflightlock.Lock()
+			b.inflight[iterID] = iter
+			b.inflightlock.Unlock()
 		}
 	}
 
-	return clientShards, nil
+	return clientIters, nil
+}
+
+func (b *Broker) groupHasClient(g *consistent.Consistent, client string) bool {
+	if len(g.Members()) == 0 {
+		return false
+	}
+
+	for _, c := range g.Members() {
+		if c == client {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Commit c
+func (b *Broker) Commit(iterID string, offset int64) (string, error) {
+	if _, ok := b.inflight[iterID]; ok {
+		if err := b.iterStore.Commit(iterID, offset); err != nil {
+			return "", fmt.Errorf("broker: commit to iter store failed: %s", err)
+		}
+
+		return iterID, nil
+	}
+
+	return "", fmt.Errorf("broker: commiting iterator that is not in flight %v", iterID)
 }

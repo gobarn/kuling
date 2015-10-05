@@ -10,11 +10,13 @@ var (
 	shard          string
 	fetchAddress   string
 	group          string
+	client         string
 	startID        int
 	maxNumMessages int
 	message        string
 	key            string
 	numShards      int
+	iter           string
 )
 
 // ServerCmd root cmd for log store commands
@@ -31,6 +33,8 @@ func init() {
 	bootstrapPut()
 	bootstrapCreate()
 	bootstrapDescribe()
+	bootstrapIters()
+	bootstrapCommit()
 
 	ClientCmd.PersistentFlags().StringVarP(
 		&fetchAddress,
@@ -48,5 +52,7 @@ func init() {
 		describeCmd,
 		putCmd,
 		getCmd,
+		itersCmd,
+		commitCmd,
 	)
 }

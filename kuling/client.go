@@ -148,3 +148,40 @@ func (c *Client) Get(topic, shard string, startID, maxNumMessages int64) ([]*Mes
 
 	return msgs, nil
 }
+
+// Iters gets a set of iterators belonging to the client ID for the topic and
+// group
+func (c *Client) Iters(group, client, topic string) ([]string, error) {
+	err := c.WriteArray("ITERS", group, client, topic)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	result := resp.([]interface{})
+	iters := make([]string, len(result))
+	for i, iter := range result {
+		iters[i] = string(iter.([]byte))
+	}
+
+	return iters, nil
+}
+
+// Commit an iterator at a offset
+func (c *Client) Commit(iter string, offset int64) (string, error) {
+	err := c.WriteArray("ITER_COMMIT", iter, offset)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := c.Read()
+	if err != nil {
+		return "", err
+	}
+
+	return resp.(string), nil
+}

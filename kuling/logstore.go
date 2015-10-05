@@ -28,6 +28,11 @@ type Config struct {
 	SegmentMaxBytes int64
 }
 
+// Sharder can give you the shards for a topic
+type Sharder interface {
+	Shards(string) (map[string]*Shard, error)
+}
+
 // LogStore is a file system based log store.
 type LogStore struct {
 	// Global configuration for all topics
@@ -100,7 +105,7 @@ func (ls *LogStore) CreateTopic(topicName string, numShards int) (*Topic, error)
 	}
 
 	for i := 0; i < numShards; i++ {
-		err := topic.CreateShard(fmt.Sprintf("%d", i))
+		err := topic.CreateShard(fmt.Sprintf("%010d_shard", i))
 		if err != nil {
 			// Try to delete the created topic as it could not be correctly
 			// created

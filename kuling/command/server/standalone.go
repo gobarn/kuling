@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 
 	"github.com/fredrikbackstrom/kuling/kuling"
 	"github.com/spf13/cobra"
@@ -34,6 +35,9 @@ var StandaloneServerCmd = &cobra.Command{
 
 		logStore, err := kuling.OpenLogStore(dataDir, c)
 
+		iterStore := kuling.OpenBoltIterStore(path.Join(dataDir, "broker.db"), c)
+		broker := kuling.NewBroker(logStore, iterStore)
+
 		if err != nil {
 			log.Printf("standalone: could not start server: %s\n", err)
 			os.Exit(1)
@@ -52,7 +56,7 @@ var StandaloneServerCmd = &cobra.Command{
 		// }
 
 		// Run the server in a new go routine
-		go runServer(logStore)
+		go runServer(logStore, broker)
 
 		// All Traits have been successfully started, now block on the caller
 		osSignals := make(chan os.Signal, 1)
@@ -79,9 +83,9 @@ var StandaloneServerCmd = &cobra.Command{
 	},
 }
 
-func runServer(logStore *kuling.LogStore) {
+func runServer(logStore *kuling.LogStore, broker *kuling.Broker) {
 	// Create a new log server and run it
-	kuling.ListenAndServeStandalone(listenAddress, logStore)
+	kuling.ListenAndServeStandalone(listenAddress, logStore, broker)
 }
 
 // init sets up flags for the server commands

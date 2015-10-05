@@ -7,7 +7,7 @@ import (
 )
 
 // ListenAndServeStandalone starts a standalone server on the address
-func ListenAndServeStandalone(addr string, l *LogStore) {
+func ListenAndServeStandalone(addr string, l *LogStore, b *Broker) {
 	m := resp.NewServeMux()
 	m.HandleFunc("PING", pingHandler)
 
@@ -17,6 +17,10 @@ func ListenAndServeStandalone(addr string, l *LogStore) {
 
 	m.HandleFunc("PUT", createAppendHandler(l))
 	m.HandleFunc("GET", createFetchHandler(l))
+
+	// Broker commands
+	m.HandleFunc("ITERS", createItersHandler(b))
+	m.HandleFunc("ITER_COMMIT", createIterCommitHandler(b))
 
 	s := &resp.Server{Addr: addr, Handler: m}
 	s.ListenAndServe()
@@ -102,5 +106,38 @@ func createFetchHandler(l *LogStore) resp.HandleFunc {
 		if err != nil {
 			w.WriteErr("ERR", fmt.Sprintf("%s : %s", r.Cmd, err))
 		}
+	}
+}
+
+func createItersHandler(b *Broker) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
+		group := string(r.Args[0].([]byte))
+		client := string(r.Args[1].([]byte))
+		topic := string(r.Args[2].([]byte))
+
+		var iters []string
+		var err error
+		if iters, err = b.Iters(group, client, topic); err != nil {
+			w.WriteErr("ERR", fmt.Sprintf("%s : %s", r.Cmd, err))
+			return
+		}
+
+		w.WriteArray(iters)
+	}
+}
+
+func createIterCommitHandler(b *Broker) resp.HandleFunc {
+	return func(w resp.ResponseWriter, r *resp.Request) {
+		iter := string(r.Args[0].([]byte))
+		offset := r.Args[1].(int64)
+
+		var err error
+		if iter, err = b.Commit(iter, offset); err != nil {
+			w.WriteErr("ERR", fmt.Sprintf("%s : %s", r.Cmd, err))
+			return
+		}
+
+		// return new iterator
+		w.WriteStatus("OK")
 	}
 }
