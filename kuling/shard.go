@@ -212,16 +212,16 @@ func (s *Shard) Read(startSequenceID, maxMessages int64) ([]*Message, error) {
 
 // Copy copies from the segment that owns the sequence ID and then takes
 // max number of messages forward
-func (s *Shard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCopy, postC PostCopy) (int64, error) {
+func (s *Shard) Copy(startSequenceID, maxMessages int64, w io.Writer, pre PreCopy, post PostCopy) (int64, error) {
 	var copied int64
 	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
 		// Call pre copy function with the number of bytes that we should read
-		preC(endOffset - startOffset)
+		pre(endOffset - startOffset)
 		// read and parse into messages
 		var err error
 		copied, err = segment.Copy(startOffset, endOffset, w)
 		// Call post copy function with the actual number of bytes copied
-		postC(copied)
+		post(copied)
 		return err
 	})
 
