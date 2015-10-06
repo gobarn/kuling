@@ -43,11 +43,6 @@ func NewMessage(sequenceID int64, key, payload []byte) *Message {
 	}
 }
 
-// CalculateMessageSize returns the size in bytes of the message
-func CalculateMessageSize(key, payload []byte) int64 {
-	return int64(1 + 8 + 4 + 4 + 4 + len(key) + len(payload))
-}
-
 // MessageWriter writes messages to a io Writer
 type MessageWriter struct {
 	*bufio.Writer
