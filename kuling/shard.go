@@ -37,7 +37,7 @@ type Shard struct {
 	// active segment
 	activeSegment *Segment
 	// segment max size
-	segmentMaxSByteSize int64
+	segmentMaxByteSize int64
 	// data files and directories permissions
 	permDirectories, permData os.FileMode
 	// mutex for writes, reads do not use this mutex
@@ -45,7 +45,7 @@ type Shard struct {
 }
 
 // OpenShard opens or creates a shard from the file path
-func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData os.FileMode) (*Shard, error) {
+func OpenShard(dir string, segmentMaxByteSize int64, permDirectories, permData os.FileMode) (*Shard, error) {
 	// Check that the shard directory exist, if not then create the directory
 	stat, err := os.Stat(dir)
 	if err != nil || !stat.IsDir() {
@@ -105,7 +105,7 @@ func OpenShard(dir string, segmentMaxSByteSize int64, permDirectories, permData 
 			index,
 			segments,
 			segments[len(segments)-1],
-			segmentMaxSByteSize,
+			segmentMaxByteSize,
 			permDirectories,
 			permData,
 			&sync.Mutex{},
@@ -125,20 +125,13 @@ func (s *Shard) Append(key, payload []byte) error {
 	s.wlock.Lock()
 	defer s.wlock.Unlock()
 
-	// Calculate total message size as it will appear on disk
-	msgSize := CalculateMessageSize(key, payload)
-
-	// Check if the active segment plus this message will become
-	// greater than max segment size, in such case
-	if s.activeSegment.Size()+msgSize > s.segmentMaxSByteSize {
-		// Create new segment, add it to list of segments and set to
-		// active
+	if s.activeSegment.Size() > s.segmentMaxByteSize {
 		segmentName := path.Join(s.dir, createSegmentName(len(s.segments)+1))
 		newSegment, err := OpenSegment(segmentName, s.permData)
 		if err != nil {
 			// Could not create shard, most likely due to out of disk or permissions
 			// in segment directory has changed from the outside
-			return err
+			return fmt.Errorf("shard: %s", err)
 		}
 		s.segments = append(s.segments, newSegment)
 		s.activeSegment = newSegment
@@ -158,7 +151,7 @@ func (s *Shard) Append(key, payload []byte) error {
 		// TODO: Not an ideal situation where we could not append the message to the
 		// active segment and have already commited the next sequenceID meaning that
 		// the id will not be used and may be confusing or cause errors down the line
-		return fmt.Errorf("shard: warn: Could not append message to active segment. Index id %d will be empty: %s", sequenceID, err)
+		return fmt.Errorf("shard: warn: could not append message to active segment. Index id %d will be empty: %s", sequenceID, err)
 	}
 
 	return nil
@@ -224,7 +217,7 @@ func (s *Shard) Copy(startSequenceID, maxMessages int64, w io.Writer, preC PreCo
 	err := s.readAction(startSequenceID, maxMessages, func(startOffset, endOffset int64, segment *Segment) error {
 		// Call pre copy function with the number of bytes that we should read
 		preC(endOffset - startOffset)
-		// read and pars into messages
+		// read and parse into messages
 		var err error
 		copied, err = segment.Copy(startOffset, endOffset, w)
 		// Call post copy function with the actual number of bytes copied
